@@ -226,38 +226,12 @@
         </div>
 
         <div class="card">
-          <h3>Calendário de aulas</h3>
-          <div class="calendar-legend">
-            <div class="calendar-legend-item">
-              <span class="calendar-status-dot calendar-status--ok"></span>
-              <span>Dia de aula com chamada</span>
-            </div>
-            <div class="calendar-legend-item">
-              <span class="calendar-status-dot calendar-status--missing"></span>
-              <span>Dia de aula sem chamada</span>
-            </div>
-            <div class="calendar-legend-item">
-              <span class="calendar-status-dot calendar-status--partial"></span>
-              <span>Chamada incompleta</span>
-            </div>
+          <h3>Calendário de Aulas e Frequência</h3>
+          <div id="calendarioContainer" class="calendar-container-novo">
+            <!-- Calendário renderizado via JS -->
           </div>
-          <div class="calendar-wrapper">
-            <table class="calendar-table">
-              <thead>
-                <tr>
-                  <th>Dom</th>
-                  <th>Seg</th>
-                  <th>Ter</th>
-                  <th>Qua</th>
-                  <th>Qui</th>
-                  <th>Sex</th>
-                  <th>Sáb</th>
-                </tr>
-              </thead>
-              <tbody id="calendarioBody">
-                <!-- via JS -->
-              </tbody>
-            </table>
+          <div id="calendarDetailModal" class="modal hidden">
+            <!-- Modal de detalhes renderizado via JS -->
           </div>
         </div>
       </section>

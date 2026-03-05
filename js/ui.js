@@ -286,6 +286,9 @@ function initTurmaTabs() {
 
 /* ================== Tab ALUNOS ================== */
 
+// VARIÁVEL GLOBAL PARA CONTROLAR SE O FORMULÁRIO JÁ FOI INICIALIZADO
+let novoAlunoFormInicializado = false;
+
 async function renderTabAlunos() {
   const lista = document.getElementById("listaAlunosTurma");
   if (!lista || !uiState.turmaAtual) return;
@@ -295,54 +298,76 @@ async function renderTabAlunos() {
 
   if (!uiState.alunosTurmaAtual.length) {
     lista.innerHTML = `<li class="help-text">Nenhum aluno cadastrado.</li>`;
-    return;
+  } else {
+    uiState.alunosTurmaAtual.forEach((aluno) => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <span>${aluno.nome}</span>
+        <button class="btn btn-outline btn-remover-aluno" data-aluno-id="${aluno.id}">
+          Remover
+        </button>
+      `;
+      lista.appendChild(li);
+    });
+
+    lista.querySelectorAll(".btn-remover-aluno").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const alunoId = btn.dataset.alunoId;
+        const aluno = uiState.alunosTurmaAtual.find((a) => a.id === alunoId);
+        if (!aluno) return;
+        const ok = confirm(`Remover aluno "${aluno.nome}" da turma?`);
+        if (!ok) return;
+        try {
+          await removerAluno(alunoId);
+          await renderTabAlunos();
+        } catch (e) {
+          alert(e.message || "Erro ao remover aluno.");
+        }
+      });
+    });
   }
 
-  uiState.alunosTurmaAtual.forEach((aluno) => {
-    const li = document.createElement("li");
-    li.innerHTML = `
-      <span>${aluno.nome}</span>
-      <button class="btn btn-outline btn-remover-aluno" data-aluno-id="${aluno.id}">
-        Remover
-      </button>
-    `;
-    lista.appendChild(li);
-  });
-
-  lista.querySelectorAll(".btn-remover-aluno").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const alunoId = btn.dataset.alunoId;
-      const aluno = uiState.alunosTurmaAtual.find((a) => a.id === alunoId);
-      if (!aluno) return;
-      const ok = confirm(`Remover aluno "${aluno.nome}" da turma?`);
-      if (!ok) return;
-      try {
-        await removerAluno(alunoId);
-        await renderTabAlunos();
-      } catch (e) {
-        alert(e.message || "Erro ao remover aluno.");
-      }
-    });
-  });
-
-  // Form de adicionar aluno
-  const form = document.getElementById("novoAlunoForm");
-  if (form && !form.dataset.initialized) {
-    form.dataset.initialized = "true";
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (!uiState.turmaAtual) return;
-      const input = document.getElementById("novoAlunoNome");
-      const nome = input.value.trim();
-      if (!nome) return;
-      try {
-        await criarAluno(uiState.turmaAtual.id, nome);
-        input.value = "";
-        await renderTabAlunos();
-      } catch (err) {
-        alert(err.message || "Erro ao adicionar aluno.");
-      }
-    });
+  // INICIALIZAR FORMULÁRIO DE ADICIONAR ALUNO UMA VEZ
+  if (!novoAlunoFormInicializado) {
+    novoAlunoFormInicializado = true;
+    const form = document.getElementById("novoAlunoForm");
+    
+    if (form) {
+      // REMOVER LISTENERS ANTIGOS (se houver)
+      const newForm = form.cloneNode(true);
+      form.parentNode.replaceChild(newForm, form);
+      
+      // ADICIONAR NOVO LISTENER
+      const novoForm = document.getElementById("novoAlunoForm");
+      novoForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        
+        if (!uiState.turmaAtual) {
+          alert("Nenhuma turma selecionada.");
+          return;
+        }
+        
+        const input = document.getElementById("novoAlunoNome");
+        if (!input) {
+          alert("Campo de entrada não encontrado.");
+          return;
+        }
+        
+        const nome = input.value.trim();
+        if (!nome) {
+          alert("Digite o nome do aluno.");
+          return;
+        }
+        
+        try {
+          await criarAluno(uiState.turmaAtual.id, nome);
+          input.value = "";
+          await renderTabAlunos();
+        } catch (err) {
+          alert(err.message || "Erro ao adicionar aluno.");
+        }
+      });
+    }
   }
 }
 
@@ -551,9 +576,8 @@ async function atualizarTabelaRelatorio(mes) {
 }
 
 async function renderCalendario(mes) {
-  const tbody = document.getElementById("calendarioBody");
-  if (!tbody || !uiState.turmaAtual) return;
-  tbody.innerHTML = "";
+  const container = document.getElementById("calendarioContainer");
+  if (!container || !uiState.turmaAtual) return;
 
   const turmaId = uiState.turmaAtual.id;
   const horarios = await listarHorarios(turmaId);
@@ -573,55 +597,187 @@ async function renderCalendario(mes) {
   const alunos = await listarAlunos(turmaId);
   const totalAlunos = alunos.length;
 
-  let diaAtual = 1;
-  for (let semana = 0; semana < 6 && diaAtual <= totalDiasMes; semana++) {
-    const tr = document.createElement("tr");
-    for (let ds = 0; ds < 7; ds++) {
-      const td = document.createElement("td");
-      td.classList.add("calendar-day");
+  const hoje = new Date();
+  const dataHoje = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
 
-      if ((semana === 0 && ds < diaSemanaPrimeiro) || diaAtual > totalDiasMes) {
-        td.innerHTML = "";
-      } else {
-        const dataStr = `${ano}-${String(mesIndex + 1).padStart(
-          2,
-          "0"
-        )}-${String(diaAtual).padStart(2, "0")}`;
-        const numDiv = document.createElement("div");
-        numDiv.classList.add("calendar-day-number");
-        numDiv.textContent = diaAtual;
-        td.appendChild(numDiv);
+  // Nomes dos meses
+  const nomesMeses = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
+  const nomeMes = nomesMeses[mesIndex];
 
-        const diaSemanaNumero = ds;
-        const isDiaAula = diasSemanaTurma.has(diaSemanaNumero);
+  // Criar grid de dias
+  const diasGrid = document.createElement("div");
+  diasGrid.className = "calendar-grid-novo";
 
-        if (isDiaAula) {
-          const registro = mapaChamadas.get(dataStr);
-          const dot = document.createElement("span");
-          dot.classList.add("calendar-status-dot");
+  // Cabeçalho com dias da semana
+  const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+  diasSemana.forEach((dia) => {
+    const header = document.createElement("div");
+    header.className = "calendar-header-day";
+    header.textContent = dia;
+    diasGrid.appendChild(header);
+  });
 
-          if (registro) {
-            const totalReg = registro.chamada_presencas?.length ?? 0;
-            if (totalReg >= totalAlunos && totalAlunos > 0) {
-              dot.classList.add("calendar-status--ok");
-              dot.title = "Chamada completa";
-            } else {
-              dot.classList.add("calendar-status--partial");
-              dot.title = "Chamada incompleta";
-            }
-          } else {
-            dot.classList.add("calendar-status--missing");
-            dot.title = "Dia de aula sem chamada";
-          }
-          td.appendChild(dot);
-        }
-
-        diaAtual++;
-      }
-      tr.appendChild(td);
-    }
-    tbody.appendChild(tr);
+  // Dias vazios antes do primeiro dia do mês
+  for (let i = 0; i < diaSemanaPrimeiro; i++) {
+    const empty = document.createElement("div");
+    empty.className = "calendar-day-empty";
+    diasGrid.appendChild(empty);
   }
+
+  // Dias do mês
+  for (let diaAtual = 1; diaAtual <= totalDiasMes; diaAtual++) {
+    const dataStr = `${ano}-${String(mesIndex + 1).padStart(2, "0")}-${String(diaAtual).padStart(2, "0")}`;
+    const diaSemanaNumero = (diaSemanaPrimeiro + diaAtual - 1) % 7;
+    const isDiaAula = diasSemanaTurma.has(diaSemanaNumero);
+    const isHoje = dataStr === dataHoje;
+
+    const dayDiv = document.createElement("div");
+    dayDiv.className = "calendar-day-novo";
+
+    if (isHoje) dayDiv.classList.add("calendar-today");
+
+    if (isDiaAula) {
+      const registro = mapaChamadas.get(dataStr);
+      let statusClass = "calendar-no-call";
+      let statusIcon = "⚠️";
+      let statusTitle = "Sem chamada";
+      let temChamada = false;
+      let presentes = 0;
+      let ausentes = 0;
+
+      if (registro) {
+        temChamada = true;
+        const totalReg = registro.chamada_presencas?.length ?? 0;
+        presentes = registro.chamada_presencas?.filter(p => p.presente).length ?? 0;
+        ausentes = totalReg - presentes;
+
+        if (totalReg >= totalAlunos && totalAlunos > 0) {
+          statusClass = "calendar-complete";
+          statusIcon = "✓";
+          statusTitle = "Chamada completa";
+        } else {
+          statusClass = "calendar-partial";
+          statusIcon = "◐";
+          statusTitle = "Chamada parcial";
+        }
+      }
+
+      dayDiv.classList.add(statusClass);
+      dayDiv.dataset.data = dataStr;
+      dayDiv.dataset.presentes = presentes;
+      dayDiv.dataset.ausentes = ausentes;
+      dayDiv.dataset.total = totalAlunos;
+      dayDiv.dataset.temChamada = temChamada;
+      dayDiv.title = statusTitle;
+
+      // Renderizar com indicador visual mais forte
+      dayDiv.innerHTML = `
+        <div class="calendar-day-number-novo">${diaAtual}</div>
+        <div class="calendar-day-status">${statusIcon}</div>
+        ${temChamada ? '<div class="calendar-has-call-indicator"></div>' : ''}
+      `;
+
+      // Clique para ver detalhes
+      dayDiv.addEventListener("click", () => {
+        mostrarDetalhesCalendario(dataStr, presentes, ausentes, totalAlunos, statusTitle);
+      });
+
+      dayDiv.style.cursor = "pointer";
+    } else {
+      dayDiv.classList.add("calendar-no-class");
+      dayDiv.innerHTML = `<div class="calendar-day-number-novo">${diaAtual}</div>`;
+      dayDiv.title = "Sem aula";
+    }
+
+    diasGrid.appendChild(dayDiv);
+  }
+
+  // Renderizar legenda
+  const legenda = document.createElement("div");
+  legenda.className = "calendar-legend-novo";
+  legenda.innerHTML = `
+    <div class="legend-title">Legenda</div>
+    <div class="legend-items">
+      <div class="legend-item">
+        <div class="legend-color calendar-complete">✓</div>
+        <span>Chamada Completa</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color calendar-partial">◐</div>
+        <span>Chamada Parcial</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color calendar-no-call">⚠️</div>
+        <span>Sem Chamada</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color calendar-no-class"></div>
+        <span>Sem Aula</span>
+      </div>
+    </div>
+  `;
+
+  // Limpar e renderizar
+  container.innerHTML = "";
+  container.appendChild(diasGrid);
+  container.appendChild(legenda);
+}
+
+function mostrarDetalhesCalendario(data, presentes, ausentes, total, status) {
+  const modal = document.getElementById("calendarDetailModal");
+  if (!modal) return;
+
+  const percentual = total > 0 ? ((presentes / total) * 100).toFixed(1) : "0.0";
+  const dataFormatada = new Date(data + "T00:00:00").toLocaleDateString("pt-BR", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+
+  modal.innerHTML = `
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Detalhes da Chamada</h3>
+        <button class="modal-close" onclick="this.closest('.modal').classList.add('hidden')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-row">
+          <span class="detail-label">Data:</span>
+          <span class="detail-value">${dataFormatada}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Status:</span>
+          <span class="detail-value detail-status">${status}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Presentes:</span>
+          <span class="detail-value detail-present">${presentes}/${total}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Ausentes:</span>
+          <span class="detail-value detail-absent">${ausentes}/${total}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Frequência:</span>
+          <span class="detail-value detail-percent">${percentual}%</span>
+        </div>
+        <div class="detail-progress">
+          <div class="progress-bar" style="width: ${percentual}%"></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  modal.classList.remove("hidden");
+
+  // Fechar ao clicar fora
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.classList.add("hidden");
+  });
 }
 
 /* ================== Exportar PDF ================== */

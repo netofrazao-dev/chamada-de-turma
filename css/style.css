@@ -29,6 +29,8 @@
 html,
 body {
   height: 100%;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -36,6 +38,7 @@ body {
   background-color: var(--cor-fundo);
   color: var(--cor-texto);
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button,
@@ -50,6 +53,9 @@ textarea {
    =========================== */
 .app-wrapper {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 /* Auth view */
@@ -59,6 +65,12 @@ textarea {
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+  background-color: var(--cor-fundo);
+  width: 100%;
+}
+
+.auth-view.hidden {
+  display: none;
 }
 
 .auth-card {
@@ -124,162 +136,112 @@ textarea {
 /* App view */
 .app-view {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
+  flex: 1;
+  width: 100%;
 }
 
 .app-view.hidden {
   display: none;
 }
 
-/* Sidebar */
-.sidebar {
-  width: 260px;
-  background: #0f172a;
-  color: #e5e7eb;
+/* ===========================
+   App Shell - Topbar
+   =========================== */
+.app-topbar {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  min-height: 60px;
+  width: 100%;
+}
+
+.app-topbar-left {
   display: flex;
   flex-direction: column;
-  padding: 1.5rem 1.25rem;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 150px;
 }
 
-.sidebar-header {
-  margin-bottom: 1.5rem;
+.app-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.app-logo {
-  font-size: 1.4rem;
+.app-title {
+  font-size: 1.3rem;
+  color: #1565c0;
   font-weight: 700;
+  margin: 0;
 }
 
 .app-subtitle {
   font-size: 0.85rem;
-  color: #9ca3af;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: auto;
-}
-
-.nav-item {
-  width: 100%;
-  text-align: left;
-  padding: 0.6rem 0.9rem;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  color: #e5e7eb;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: background var(--transition), color var(--transition),
-    transform 0.08s ease-out;
-}
-
-.nav-item:hover {
-  background: rgba(148, 163, 184, 0.2);
-}
-
-.nav-item.active {
-  background: linear-gradient(135deg, var(--cor-secundaria), #0d47a1);
-  color: #fff;
-  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.4);
-}
-
-.sidebar-footer {
-  margin-top: 1.5rem;
+  color: #6b7280;
+  margin: 0;
 }
 
 .teacher-name {
   font-size: 0.9rem;
-  margin-bottom: 0.6rem;
-  color: #cbd5f5;
+  color: #374151;
+  font-weight: 500;
 }
 
-/* Main layout */
-.main-layout {
+/* ===========================
+   App Main Content
+   =========================== */
+.app-main {
   flex: 1;
-  display: flex;
-  flex-direction: column;
+  padding: 1.5rem;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.header {
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-  padding: 1rem 1.75rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-}
-
-.header h1 {
-  font-size: 1.5rem;
-  color: var(--cor-secundaria);
-}
-
-.subtitle {
-  font-size: 0.9rem;
-  color: #6b7280;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.turma-global-select {
-  padding: 0.35rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid #d1d5db;
-  font-size: 0.9rem;
-}
-
-.turma-global-label {
-  font-size: 0.85rem;
-  color: #6b7280;
-}
-
-.main-content {
-  flex: 1;
-  padding: 1.5rem 1.75rem 1.75rem;
-  max-width: 1100px;
-}
-
+/* ===========================
+   Hidden class
+   =========================== */
 .hidden {
   display: none !important;
 }
 
-/* Cards / containers */
+/* ===========================
+   Cards / Containers
+   =========================== */
 .card {
   background-color: var(--cor-card);
   border-radius: var(--radius-base);
-  padding: 1.15rem 1rem;
+  padding: 1.25rem;
   box-shadow: var(--shadow-suave);
-  margin-bottom: 1.2rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
 }
 
-/* Sections */
-.view-section.hidden {
-  display: none;
+.card:last-child {
+  margin-bottom: 0;
 }
 
-.view-section {
-  animation: fadeIn 0.15s ease-in-out;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Fields */
+/* ===========================
+   Form Fields
+   =========================== */
 .field-group {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.35rem;
   font-size: 0.9rem;
+  width: 100%;
 }
 
 .field-group span,
@@ -291,7 +253,7 @@ textarea {
 .field-group input,
 .field-group select,
 .field-group textarea {
-  padding: 0.5rem 0.6rem;
+  padding: 0.6rem 0.75rem;
   border-radius: 6px;
   border: 1px solid var(--cor-borda);
   font-size: 0.9rem;
@@ -299,6 +261,7 @@ textarea {
   background: #fff;
   transition: border-color var(--transition), box-shadow var(--transition),
     background var(--transition);
+  width: 100%;
 }
 
 .field-group input:focus,
@@ -312,18 +275,21 @@ textarea {
   flex-direction: row;
   justify-content: space-between;
   gap: 1rem;
-  align-items: center;
+  align-items: flex-end;
 }
 
 .field-group.inline > div {
   flex: 1;
+  min-width: 120px;
 }
 
-/* Buttons */
+/* ===========================
+   Buttons
+   =========================== */
 .btn {
   border-radius: var(--radius-pill);
   border: none;
-  padding: 0.5rem 1rem;
+  padding: 0.6rem 1.2rem;
   font-size: 0.9rem;
   cursor: pointer;
   display: inline-flex;
@@ -333,10 +299,19 @@ textarea {
   transition: background-color var(--transition), color var(--transition),
     box-shadow var(--transition), transform 0.08s ease-out;
   white-space: nowrap;
+  font-weight: 500;
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .btn:active {
   transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .btn-primary {
@@ -367,439 +342,94 @@ textarea {
 .btn-outline:hover {
   color: #374151;
   border-color: #6b7280;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  box-shadow: none;
+  background-color: #f9fafb;
 }
 
 .full-width {
   width: 100%;
 }
 
-/* Students section */
-.students-section .students-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.8rem;
-  flex-wrap: wrap;
-}
-
-.students-header h2,
-.students-header h3 {
-  color: var(--cor-secundaria);
-  font-size: 1.1rem;
-}
-
-.bulk-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.students-list {
-  list-style: none;
-  max-height: 360px;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-.students-list::-webkit-scrollbar {
-  width: 6px;
-}
-.students-list::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 10px;
-}
-
-.students-list li {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 0.1rem;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.students-list li:last-child {
-  border-bottom: none;
-}
-
-.students-list input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.students-list label {
-  cursor: pointer;
-  font-size: 0.95rem;
-}
-
-/* WhatsApp section */
-.whatsapp-section h2 {
-  color: var(--cor-secundaria);
-  font-size: 1.1rem;
-  margin-bottom: 0.7rem;
-}
-
-.whatsapp-actions {
-  margin-bottom: 0.8rem;
-}
-
-.generated-text-area {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  margin-bottom: 0.8rem;
-}
-
-.generated-text-area textarea {
-  min-height: 110px;
-  resize: vertical;
-}
-
-.copy-send-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.3rem;
-}
-
+/* ===========================
+   Status Messages
+   =========================== */
 .status-message {
   font-size: 0.85rem;
   min-height: 1.1em;
+  margin-top: 0.5rem;
 }
 
-/* Relatórios */
-.report-section + .report-section {
+.auth-message {
   margin-top: 0.8rem;
 }
 
-.schedule-table-wrapper {
-  overflow-x: auto;
-}
-
-.schedule-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-.schedule-table th,
-.schedule-table td {
-  padding: 0.55rem 0.5rem;
-  text-align: left;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.schedule-table th {
-  background-color: #f9fafb;
-  font-weight: 600;
-  color: #4b5563;
-}
-
-/* Summary */
-.student-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-.summary-item {
-  flex: 1 1 130px;
-  background-color: #f9fafb;
-  border-radius: 8px;
-  padding: 0.6rem 0.7rem;
-}
-
-.summary-label {
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-.summary-value {
-  font-weight: 600;
-  font-size: 1rem;
-}
-
-/* Dias com chamada */
-.days-list {
-  list-style: none;
-  padding-left: 0;
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.days-list li {
-  padding: 0.25rem 0;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.days-list li:last-child {
-  border-bottom: none;
-}
-
-.day-warning {
-  color: #e53935;
-  font-weight: 600;
-  font-size: 0.8rem;
-  margin-left: 0.25rem;
-}
-
-/* Calendário */
-.calendar-wrapper {
-  overflow-x: auto;
-}
-
-.calendar-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8rem;
-  text-align: center;
-}
-
-.calendar-table th,
-.calendar-table td {
-  padding: 0.4rem;
-  border: 1px solid #e5e7eb;
-  height: 40px;
-  vertical-align: top;
-}
-
-.calendar-day {
-  position: relative;
-  min-width: 40px;
-}
-
-.calendar-day-number {
-  font-size: 0.8rem;
-  margin-bottom: 0.15rem;
-}
-
-.calendar-status-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.calendar-status--ok {
-  background-color: #4caf50;
-}
-.calendar-status--missing {
-  background-color: #e53935;
-}
-.calendar-status--partial {
-  background-color: #ffb300;
-}
-
-.calendar-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  font-size: 0.8rem;
-  margin-bottom: 0.65rem;
-}
-
-.calendar-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-/* Configurações */
-.inline-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.8rem;
-}
-
-.inline-form input,
-.inline-form select {
-  flex: 1 1 150px;
-}
-
-.simple-list {
-  list-style: none;
-  padding-left: 0;
-}
-
-.simple-list li {
-  padding: 0.35rem 0;
-  border-bottom: 1px solid #f1f5f9;
-  font-size: 0.9rem;
-}
-
+/* ===========================
+   Help Text
+   =========================== */
 .help-text {
   font-size: 0.8rem;
   color: #6b7280;
   margin-bottom: 0.35rem;
 }
 
-/* Footer */
-.footer {
-  padding: 0.7rem 1.75rem;
-  text-align: center;
-  font-size: 0.8rem;
-  color: #9ca3af;
-  background-color: #fff;
-  border-top: 1px solid #e5e7eb;
+/* ===========================
+   PAINEL DE TURMAS
+   =========================== */
+#turmas-view {
+  width: 100%;
 }
 
-/* Estados especiais */
-#gerarWhatsappBtn.destaque {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(135deg, #0056ff, #003bbf);
-  border: 2px solid #ffffff;
-  font-weight: 700;
-  box-shadow: 0 10px 30px rgba(0, 86, 255, 0.45);
+#turmas-view.hidden {
+  display: none;
 }
 
-#gerarWhatsappBtn.destaque::before {
-  content: "";
-  position: absolute;
-  top: -50%;
-  left: -30%;
-  width: 160%;
-  height: 160%;
-  background: linear-gradient(
-    45deg,
-    transparent,
-    rgba(255, 0, 0, 0.15),
-    transparent
-  );
-  transform: rotate(25deg);
-  transition: 0.5s;
-}
-
-#gerarWhatsappBtn.destaque:hover::before {
-  left: 100%;
-}
-
-#gerarWhatsappBtn.destaque::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50px;
-  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.6);
-  animation: pulseBlue 2.2s infinite;
-}
-
-@keyframes pulseBlue {
-  0% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.6);
-  }
-  70% {
-    box-shadow: 0 0 0 18px rgba(0, 86, 255, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(0, 86, 255, 0);
-  }
-}
-
-/* Auth message */
-.auth-message {
-  margin-top: 0.8rem;
-}
-
-/* Responsividade */
-@media (max-width: 900px) {
-  .sidebar {
-    display: none;
-  }
-  .main-layout {
-    width: 100%;
-  }
-  .header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-@media (max-width: 600px) {
-  .main-content {
-    padding: 1.1rem 1rem 1.2rem;
-  }
-  .students-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .bulk-actions {
-    width: 100%;
-  }
-  .copy-send-actions {
-    flex-direction: column;
-  }
-  .btn {
-    width: 100%;
-    justify-content: center;
-  }
-  .student-summary {
-    flex-direction: column;
-  }
-}
-
-/* ====== App shell ====== */
-.app-topbar {
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-  padding: 0.9rem 1.4rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.app-title {
-  font-size: 1.3rem;
-  color: #1565c0;
-}
-
-.app-subtitle {
-  font-size: 0.85rem;
-  color: #6b7280;
-}
-
-.app-main {
-  padding: 1.4rem;
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-/* ====== Painel de turmas ====== */
 .turmas-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.turmas-header > div {
+  flex: 1;
+  min-width: 200px;
+}
+
+.turmas-header h2 {
+  font-size: 1.3rem;
+  color: #1565c0;
+  margin: 0 0 0.25rem 0;
 }
 
 .turmas-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
 }
 
 .turma-card {
   background: #ffffff;
   border-radius: 10px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
-  padding: 0.9rem 0.9rem 0.8rem;
+  padding: 1.1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.6rem;
+  transition: box-shadow var(--transition), transform 0.1s ease-out;
+}
+
+.turma-card:hover {
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+  transform: translateY(-2px);
 }
 
 .turma-card-title {
-  font-weight: 600;
+  font-weight: 700;
   color: #1f2933;
+  font-size: 1rem;
 }
 
 .turma-card-meta {
@@ -810,176 +440,1451 @@ textarea {
 .turma-card-dias {
   font-size: 0.85rem;
   color: #374151;
+  line-height: 1.4;
 }
 
 .turma-card-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.4rem;
-  margin-top: 0.4rem;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
 }
 
+.turma-card-actions .btn {
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+  flex: 1;
+  min-width: 70px;
+}
+
+/* Turma Form */
 .turma-form {
   background: #ffffff;
   border-radius: 10px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
-  padding: 0.8rem 0.9rem;
-  margin-bottom: 1rem;
+  padding: 1.1rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+}
+
+.turma-form.hidden {
+  display: none;
 }
 
 .turma-form-fields {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.75rem;
+  align-items: flex-end;
 }
 
 .turma-form-fields input {
   flex: 1 1 160px;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--cor-borda);
+  font-size: 0.9rem;
+  min-width: 100px;
 }
 
-/* ====== Detalhe da turma ====== */
+.turma-form-fields .btn {
+  padding: 0.6rem 1.2rem;
+  flex-shrink: 0;
+}
+
+#turmaFormStatus {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+/* ===========================
+   DETALHE DA TURMA
+   =========================== */
+#turma-detail-view {
+  width: 100%;
+}
+
+#turma-detail-view.hidden {
+  display: none;
+}
+
 .turma-detail-header {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 0.9rem;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.turma-detail-header .btn {
+  flex-shrink: 0;
+}
+
+.turma-detail-info {
+  flex: 1;
+  min-width: 200px;
 }
 
 .turma-detail-info h2 {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   color: #1565c0;
+  margin: 0 0 0.25rem 0;
+}
+
+.turma-detail-info .help-text {
+  margin: 0;
 }
 
 /* Abas da turma */
 .turma-tabs {
   display: flex;
-  gap: 0.4rem;
-  margin-bottom: 0.8rem;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .turma-tab {
-  border-radius: 999px;
+  border-radius: 6px;
   border: none;
-  background: #e5e7eb;
+  background: transparent;
   color: #374151;
-  padding: 0.35rem 0.9rem;
+  padding: 0.6rem 1rem;
   font-size: 0.9rem;
   cursor: pointer;
   transition: background 0.2s, color 0.2s;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.turma-tab:hover {
+  background: #f3f4f6;
 }
 
 .turma-tab.active {
   background: #1565c0;
   color: #ffffff;
+  border-radius: 6px;
+}
+
+.turma-tab-content {
+  display: block;
+  width: 100%;
 }
 
 .turma-tab-content.hidden {
   display: none;
 }
 
-/* ====== Alunos ====== */
+/* ===========================
+   TAB ALUNOS
+   =========================== */
+#tab-alunos {
+  width: 100%;
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.inline-form input {
+  flex: 1 1 150px;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--cor-borda);
+  font-size: 0.9rem;
+  min-width: 100px;
+}
+
+.inline-form .btn {
+  flex-shrink: 0;
+  min-width: 100px;
+}
+
+#listaAlunosTurma {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
 #listaAlunosTurma li {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e5e7eb;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
-/* ====== Chamada ====== */
+#listaAlunosTurma li:last-child {
+  border-bottom: none;
+}
+
+#listaAlunosTurma span {
+  flex: 1;
+  min-width: 150px;
+  word-break: break-word;
+}
+
+#listaAlunosTurma .btn {
+  flex-shrink: 0;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  min-width: 80px;
+}
+
+.simple-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+  width: 100%;
+}
+
+.simple-list li {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.9rem;
+}
+
+.simple-list li:last-child {
+  border-bottom: none;
+}
+
+/* ===========================
+   TAB CHAMADA
+   =========================== */
+#tab-chamada {
+  width: 100%;
+}
+
 .chamada-header {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1.5rem;
   align-items: flex-end;
-  margin-bottom: 0.7rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.chamada-header > div {
+  flex: 1;
+  min-width: 150px;
+}
+
+.chamada-header h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: #1565c0;
 }
 
 .lista-chamada {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0;
+  margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
 }
 
 .chamada-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.35rem 0.1rem;
+  padding: 0.8rem;
   border-bottom: 1px solid #e5e7eb;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.chamada-row:last-child {
+  border-bottom: none;
 }
 
 .chamada-aluno-nome {
   font-size: 0.95rem;
+  font-weight: 500;
+  flex: 1;
+  min-width: 150px;
+  word-break: break-word;
 }
 
 .chamada-buttons {
   display: inline-flex;
-  gap: 0.25rem;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .btn-presenca {
-  min-width: 70px;
-  border-radius: 999px;
-  border: 1px solid #d1d5db;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.8rem;
+  min-width: 75px;
+  border-radius: 6px;
+  border: 1.5px solid #d1d5db;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.85rem;
   cursor: pointer;
   background: #ffffff;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
+  font-weight: 500;
+  min-height: 44px;
 }
 
 .btn-presenca.present {
   border-color: #22c55e;
   color: #15803d;
 }
+
 .btn-presenca.present.selected {
   background: #22c55e;
   color: #ffffff;
+  border-color: #22c55e;
 }
 
 .btn-presenca.absent {
   border-color: #ef4444;
   color: #b91c1c;
 }
+
 .btn-presenca.absent.selected {
   background: #ef4444;
   color: #ffffff;
+  border-color: #ef4444;
 }
 
 .chamada-actions {
-  margin-top: 0.7rem;
+  margin-top: 1rem;
   display: flex;
   justify-content: flex-end;
+  width: 100%;
 }
 
-/* ====== Relatórios ====== */
+#mensagemStatus {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+/* ===========================
+   TAB RELATÓRIOS
+   =========================== */
+#tab-relatorios {
+  width: 100%;
+}
+
 .relatorios-header {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.7rem;
+  gap: 1.5rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.relatorios-header > div {
+  flex: 1;
+  min-width: 150px;
+}
+
+.relatorios-header h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: #1565c0;
+}
+
+.schedule-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  width: 100%;
+}
+
+.schedule-table,
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  min-width: 100%;
+}
+
+.schedule-table th,
+.schedule-table td,
+.report-table th,
+.report-table td {
+  padding: 0.75rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.schedule-table th,
+.report-table th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.schedule-table tbody tr:last-child td,
+.report-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .relatorios-actions {
-  margin-top: 0.7rem;
+  margin-top: 1rem;
   display: flex;
   justify-content: flex-end;
+  width: 100%;
 }
 
-@media (max-width: 700px) {
-  .turmas-header {
+/* Calendário */
+.calendar-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 1rem;
+  width: 100%;
+}
+
+.calendar-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  text-align: center;
+  min-width: 100%;
+}
+
+.calendar-table th,
+.calendar-table td {
+  padding: 0.5rem;
+  border: 1px solid #e5e7eb;
+  height: 50px;
+  vertical-align: top;
+}
+
+.calendar-table th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.calendar-day {
+  position: relative;
+  min-width: 50px;
+  background: #ffffff;
+}
+
+.calendar-day-number {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.calendar-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 0.25rem;
+}
+
+.calendar-status--ok {
+  background-color: #4caf50;
+}
+
+.calendar-status--missing {
+  background-color: #e53935;
+}
+
+.calendar-status--partial {
+  background-color: #ffb300;
+}
+
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  width: 100%;
+}
+
+.calendar-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ===========================
+   Footer
+   =========================== */
+.footer {
+  padding: 1rem 1.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  background-color: #fff;
+  border-top: 1px solid #e5e7eb;
+  margin-top: auto;
+  width: 100%;
+}
+
+/* ===========================
+   Animações
+   =========================== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.view-section {
+  animation: fadeIn 0.15s ease-in-out;
+}
+
+.view-section.hidden {
+  display: none;
+}
+
+/* ===========================
+   RESPONSIVIDADE MOBILE
+   =========================== */
+
+/* Tablets (481px - 768px) */
+@media (max-width: 768px) {
+  .app-topbar {
+    padding: 0.9rem 1rem;
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .app-topbar-left {
+    width: 100%;
+  }
+
+  .app-topbar-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .app-main {
+    padding: 1rem;
+  }
+
+  .turmas-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+
   .turma-detail-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 1rem;
+    width: 100%;
   }
-  .relatorios-header,
-  .chamada-header {
+
+  .turma-detail-header .btn {
+    width: 100%;
+  }
+
+  .turmas-header {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .turmas-header .btn {
+    width: 100%;
+  }
+
+  .chamada-header,
+  .relatorios-header {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .chamada-header > div,
+  .relatorios-header > div {
+    width: 100%;
+  }
+
+  .chamada-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .chamada-buttons {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .btn-presenca {
+    flex: 1;
+    min-width: 70px;
+  }
+
+  .turma-form-fields {
+    flex-direction: column;
+  }
+
+  .turma-form-fields input,
+  .turma-form-fields .btn {
+    width: 100%;
+  }
+
+  .inline-form {
+    flex-direction: column;
+  }
+
+  .inline-form input,
+  .inline-form .btn {
+    width: 100%;
+  }
+
+  #listaAlunosTurma li {
     flex-direction: column;
     align-items: flex-start;
   }
-  .btn {
+
+  #listaAlunosTurma .btn {
     width: 100%;
   }
+
+  .turma-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .turma-tab {
+    flex: 0 0 auto;
+    min-width: 100px;
+  }
+
+  .schedule-table,
+  .report-table {
+    font-size: 0.8rem;
+  }
+
+  .schedule-table th,
+  .schedule-table td,
+  .report-table th,
+  .report-table td {
+    padding: 0.5rem 0.4rem;
+  }
+
+  .calendar-table th,
+  .calendar-table td {
+    padding: 0.35rem;
+    height: 40px;
+    font-size: 0.75rem;
+  }
+
+  .calendar-day {
+    min-width: 40px;
+  }
+
+  .calendar-legend {
+    gap: 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+}
+
+/* Celulares pequenos (320px - 480px) */
+@media (max-width: 480px) {
+  html,
+  body {
+    font-size: 14px;
+  }
+
+  .app-wrapper {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .app-topbar {
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .app-title {
+    font-size: 1.1rem;
+  }
+
+  .app-subtitle {
+    font-size: 0.75rem;
+  }
+
+  .teacher-name {
+    font-size: 0.8rem;
+  }
+
+  .app-main {
+    padding: 0.75rem;
+    max-width: 100%;
+  }
+
+  .turmas-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .turma-card {
+    padding: 0.9rem;
+  }
+
+  .turma-card-actions .btn {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.8rem;
+    flex: 1;
+    min-width: 60px;
+  }
+
+  .card {
+    padding: 0.9rem;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+  }
+
+  .card h3 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .btn {
+    padding: 0.5rem 0.9rem;
+    font-size: 0.85rem;
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  .btn-presenca {
+    min-width: 60px;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.8rem;
+    min-height: 40px;
+    flex: 1;
+  }
+
+  .chamada-buttons {
+    gap: 0.35rem;
+    width: 100%;
+  }
+
+  .turma-tabs {
+    gap: 0.35rem;
+    padding-bottom: 0.35rem;
+  }
+
+  .turma-tab {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    min-width: 80px;
+  }
+
+  .schedule-table,
+  .report-table {
+    font-size: 0.75rem;
+  }
+
+  .schedule-table th,
+  .schedule-table td,
+  .report-table th,
+  .report-table td {
+    padding: 0.4rem 0.3rem;
+  }
+
+  .calendar-table th,
+  .calendar-table td {
+    padding: 0.25rem;
+    height: 35px;
+    font-size: 0.7rem;
+  }
+
+  .calendar-day-number {
+    font-size: 0.7rem;
+  }
+
+  .calendar-status-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .calendar-legend {
+    gap: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .footer {
+    padding: 0.75rem;
+    font-size: 0.7rem;
+  }
+
+  .turma-form-fields input {
+    font-size: 16px;
+  }
+
+  .inline-form input {
+    font-size: 16px;
+  }
+
+  .field-group input,
+  .field-group select,
+  .field-group textarea {
+    font-size: 16px;
+  }
+
+  .turma-detail-header {
+    gap: 0.75rem;
+  }
+
+  .turma-detail-info h2 {
+    font-size: 1.1rem;
+  }
+
+  .chamada-header,
+  .relatorios-header {
+    gap: 0.75rem;
+  }
+
+  .chamada-header h3,
+  .relatorios-header h3 {
+    font-size: 1rem;
+  }
+
+  .help-text {
+    font-size: 0.75rem;
+  }
+
+  .status-message {
+    font-size: 0.8rem;
+  }
+
+  #listaAlunosTurma li {
+    padding: 0.6rem 0;
+    gap: 0.5rem;
+  }
+
+  #listaAlunosTurma span {
+    min-width: 120px;
+  }
+
+  #listaAlunosTurma .btn {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
+    min-width: 70px;
+  }
+
+  .chamada-row {
+    padding: 0.6rem;
+    gap: 0.5rem;
+  }
+
+  .chamada-aluno-nome {
+    min-width: 120px;
+    font-size: 0.9rem;
+  }
+
+  .turma-form-fields {
+    gap: 0.5rem;
+  }
+
+  .turma-form-fields input {
+    min-width: 80px;
+  }
+
+  .inline-form {
+    gap: 0.5rem;
+  }
+
+  .inline-form input {
+    min-width: 80px;
+  }
+
+  .turmas-header > div {
+    min-width: 150px;
+  }
+
+  .turma-detail-info {
+    min-width: 150px;
+  }
+
+  .chamada-header > div,
+  .relatorios-header > div {
+    min-width: 120px;
+  }
+
+  .field-group.inline {
+    gap: 0.5rem;
+  }
+
+  .field-group.inline > div {
+    min-width: 100px;
+  }
+}
+
+/* Celulares muito pequenos (até 320px) */
+@media (max-width: 320px) {
+  .app-topbar {
+    padding: 0.5rem;
+  }
+
+  .app-title {
+    font-size: 1rem;
+  }
+
+  .app-main {
+    padding: 0.5rem;
+  }
+
+  .card {
+    padding: 0.75rem;
+  }
+
+  .btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+
+  .turma-card-actions .btn {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+  }
+
+  .turma-tab {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+    min-width: 70px;
+  }
+
+  .schedule-table,
+  .report-table {
+    font-size: 0.7rem;
+  }
+
+  .schedule-table th,
+  .schedule-table td,
+  .report-table th,
+  .report-table td {
+    padding: 0.3rem 0.2rem;
+  }
+}
+
+
+/* ===========================
+   Novo Calendário Visual
+   =========================== */
+.calendar-container-novo {
+  width: 100%;
+}
+
+.calendar-grid-novo {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+}
+
+.calendar-header-day {
+  text-align: center;
+  font-weight: 700;
+  color: #1565c0;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+  border-bottom: 2px solid #1565c0;
+}
+
+.calendar-day-empty {
+  /* Dias vazios antes do primeiro dia */
+}
+
+.calendar-day-novo {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 2px solid #e5e7eb;
+  padding: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease-in-out;
+  position: relative;
+  background: #ffffff;
+}
+
+.calendar-day-novo:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.calendar-day-number-novo {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2933;
+}
+
+.calendar-day-status {
+  font-size: 1.2rem;
+  margin-top: 0.25rem;
+}
+
+/* Estados do dia */
+.calendar-complete {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  border: 3px solid #22c55e !important;
+  color: #15803d;
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.3), inset 0 0 8px rgba(34, 197, 94, 0.1);
+  position: relative;
+}
+
+.calendar-complete .calendar-day-status {
+  color: #22c55e;
+  font-weight: 900;
+}
+
+.calendar-complete::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background: #22c55e;
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.6);
+}
+
+.calendar-partial {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 3px solid #f59e0b !important;
+  color: #b45309;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3), inset 0 0 8px rgba(245, 158, 11, 0.1);
+  position: relative;
+}
+
+.calendar-partial .calendar-day-status {
+  color: #f59e0b;
+  font-weight: 900;
+}
+
+.calendar-partial::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background: #f59e0b;
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(245, 158, 11, 0.6);
+}
+
+.calendar-no-call {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  border: 3px solid #ef4444 !important;
+  color: #b91c1c;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3), inset 0 0 8px rgba(239, 68, 68, 0.1);
+  position: relative;
+}
+
+.calendar-no-call .calendar-day-status {
+  color: #ef4444;
+  font-weight: 900;
+}
+
+.calendar-no-call::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(239, 68, 68, 0.6);
+}
+
+.calendar-no-class {
+  background: #f9fafb;
+  border: 2px solid #d1d5db;
+  color: #9ca3af;
+  box-shadow: none;
+}
+
+.calendar-today {
+  box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.2);
+  border-color: #1565c0;
+}
+
+/* Legenda */
+.calendar-legend-novo {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1.5rem;
+  width: 100%;
+}
+
+.legend-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #1f2933;
+  margin-bottom: 0.75rem;
+}
+
+.legend-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+.legend-color {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  flex-shrink: 0;
+  border: 2px solid #e5e7eb;
+}
+
+.legend-color.calendar-complete {
+  background: #dcfce7;
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.legend-color.calendar-partial {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.legend-color.calendar-no-call {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.legend-color.calendar-no-class {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+/* Modal de detalhes */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px rgba(0, 0, 0, 0.15);
+  max-width: 400px;
+  width: 100%;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #1f2933;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.modal-close:hover {
+  color: #374151;
+}
+
+.modal-body {
+  padding: 1.25rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.detail-row:last-of-type {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.detail-value {
+  font-weight: 700;
+  color: #1f2933;
+  font-size: 0.95rem;
+}
+
+.detail-status {
+  color: #1565c0;
+}
+
+.detail-present {
+  color: #22c55e;
+}
+
+.detail-absent {
+  color: #ef4444;
+}
+
+.detail-percent {
+  color: #f59e0b;
+}
+
+.detail-progress {
+  margin-top: 1rem;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+  transition: width 0.3s ease-out;
+}
+
+/* Responsividade do novo calendário */
+@media (max-width: 768px) {
+  .calendar-grid-novo {
+    gap: 0.5rem;
+  }
+
+  .calendar-day-novo {
+    border-radius: 6px;
+    padding: 0.35rem;
+  }
+
+  .calendar-day-number-novo {
+    font-size: 1rem;
+  }
+
+  .calendar-day-status {
+    font-size: 1rem;
+    margin-top: 0.15rem;
+  }
+
+  .legend-items {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .legend-color {
+    width: 28px;
+    height: 28px;
+    font-size: 0.9rem;
+  }
+
+  .legend-item {
+    font-size: 0.85rem;
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .calendar-grid-novo {
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+  }
+
+  .calendar-header-day {
+    font-size: 0.8rem;
+    padding: 0.35rem 0;
+  }
+
+  .calendar-day-novo {
+    border-radius: 6px;
+    padding: 0.3rem;
+    border-width: 1.5px;
+    min-height: 50px;
+  }
+
+  .calendar-day-number-novo {
+    font-size: 0.95rem;
+  }
+
+  .calendar-day-status {
+    font-size: 0.9rem;
+    margin-top: 0.1rem;
+  }
+
+  .calendar-legend-novo {
+    padding: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .legend-title {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .legend-items {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .legend-color {
+    width: 24px;
+    height: 24px;
+    font-size: 0.8rem;
+  }
+
+  .legend-item {
+    font-size: 0.8rem;
+    gap: 0.5rem;
+  }
+
+  .modal-content {
+    max-width: 90vw;
+    max-height: 80vh;
+  }
+
+  .modal-header {
+    padding: 1rem;
+  }
+
+  .modal-body {
+    padding: 1rem;
+  }
+
+  .detail-row {
+    padding: 0.6rem 0;
+    font-size: 0.9rem;
+  }
+
+  .detail-label {
+    font-size: 0.85rem;
+  }
+
+  .detail-value {
+    font-size: 0.9rem;
+  }
+}
+
+
+/* Indicador visual de chamada registrada */
+.calendar-has-call-indicator {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+  opacity: 0.8;
+}
+
+.calendar-complete .calendar-has-call-indicator {
+  background: #22c55e;
+  box-shadow: 0 0 3px rgba(34, 197, 94, 0.6);
+}
+
+.calendar-partial .calendar-has-call-indicator {
+  background: #f59e0b;
+  box-shadow: 0 0 3px rgba(245, 158, 11, 0.6);
+}
+
+.calendar-no-call .calendar-has-call-indicator {
+  background: #ef4444;
+  box-shadow: 0 0 3px rgba(239, 68, 68, 0.6);
 }
