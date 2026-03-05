@@ -745,3 +745,241 @@ textarea {
     flex-direction: column;
   }
 }
+
+/* ====== App shell ====== */
+.app-topbar {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  padding: 0.9rem 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-title {
+  font-size: 1.3rem;
+  color: #1565c0;
+}
+
+.app-subtitle {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.app-main {
+  padding: 1.4rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ====== Painel de turmas ====== */
+.turmas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.turmas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.turma-card {
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  padding: 0.9rem 0.9rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.turma-card-title {
+  font-weight: 600;
+  color: #1f2933;
+}
+
+.turma-card-meta {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.turma-card-dias {
+  font-size: 0.85rem;
+  color: #374151;
+}
+
+.turma-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.turma-form {
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  padding: 0.8rem 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.turma-form-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.turma-form-fields input {
+  flex: 1 1 160px;
+}
+
+/* ====== Detalhe da turma ====== */
+.turma-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.turma-detail-info h2 {
+  font-size: 1.2rem;
+  color: #1565c0;
+}
+
+/* Abas da turma */
+.turma-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.turma-tab {
+  border-radius: 999px;
+  border: none;
+  background: #e5e7eb;
+  color: #374151;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.turma-tab.active {
+  background: #1565c0;
+  color: #ffffff;
+}
+
+.turma-tab-content.hidden {
+  display: none;
+}
+
+/* ====== Alunos ====== */
+#listaAlunosTurma li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ====== Chamada ====== */
+.chamada-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 0.7rem;
+}
+
+.lista-chamada {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.chamada-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chamada-aluno-nome {
+  font-size: 0.95rem;
+}
+
+.chamada-buttons {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.btn-presenca {
+  min-width: 70px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: #ffffff;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.btn-presenca.present {
+  border-color: #22c55e;
+  color: #15803d;
+}
+.btn-presenca.present.selected {
+  background: #22c55e;
+  color: #ffffff;
+}
+
+.btn-presenca.absent {
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+.btn-presenca.absent.selected {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.chamada-actions {
+  margin-top: 0.7rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ====== Relatórios ====== */
+.relatorios-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.relatorios-actions {
+  margin-top: 0.7rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 700px) {
+  .turmas-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .turma-detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .relatorios-header,
+  .chamada-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .btn {
+    width: 100%;
+  }
+}

@@ -55,318 +55,219 @@
     </div>
 
     <!-- ========== App (Dashboard) ========== -->
-    <div id="app-view" class="app-view hidden">
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <div class="sidebar-header">
-          <h2 class="app-logo">KUBOGAB</h2>
-          <p class="app-subtitle">Chamada de presença</p>
+<!-- ========== App (pós-login) ========== -->
+<div id="app-view" class="app-view hidden">
+  <!-- Topbar simples -->
+  <header class="app-topbar">
+    <div class="app-topbar-left">
+      <h1 class="app-title">KUBOGAB</h1>
+      <p class="app-subtitle">Controle simples de frequência</p>
+    </div>
+    <div class="app-topbar-right">
+      <span id="currentTeacherName" class="teacher-name">Professora</span>
+      <button id="logoutBtn" class="btn btn-outline">Sair</button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <!-- 1️⃣ PAINEL DE TURMAS -->
+    <section id="turmas-view">
+      <div class="turmas-header">
+        <div>
+          <h2>Minhas turmas</h2>
+          <p class="help-text">Escolha uma turma ou crie uma nova para começar.</p>
         </div>
-
-        <nav class="sidebar-nav">
-          <button data-view="attendance" class="nav-item active">Chamada</button>
-          <button data-view="reports" class="nav-item">Relatórios</button>
-          <button data-view="settings" class="nav-item">Configurações</button>
-        </nav>
-
-        <div class="sidebar-footer">
-          <div id="currentTeacherName" class="teacher-name">Professora</div>
-          <button id="logoutBtn" class="btn btn-outline full-width">Sair</button>
-        </div>
-      </aside>
-
-      <!-- Conteúdo principal -->
-      <div class="main-layout">
-        <header class="header">
-          <div>
-            <h1>Chamada de Presença da <span id="titulo" class="brand-accent">BABY PRINCESS</span></h1>
-            <p class="subtitle">Controle de presença por turma com envio para WhatsApp e relatórios.</p>
-          </div>
-          <div class="header-right">
-            <select id="turmaGlobalSelect" class="turma-global-select"></select>
-            <span id="turmaGlobalLabel" class="turma-global-label"></span>
-          </div>
-        </header>
-
-        <main class="main-content">
-          <!-- ========== VIEW: CHAMADA ========== -->
-          <section id="view-attendance" class="view-section">
-            <!-- Configurações da chamada -->
-            <section class="card call-settings">
-              <div class="field-group">
-                <label for="turmaSelect">Turma</label>
-                <select id="turmaSelect"></select>
-              </div>
-              <div class="field-group">
-                <label for="dataChamada">Data da chamada</label>
-                <input type="date" id="dataChamada" />
-              </div>
-            </section>
-
-            <!-- Lista de alunos -->
-            <section class="card students-section">
-              <div class="students-header">
-                <h2 id="tituloTurma">Alunos</h2>
-                <div class="bulk-actions">
-                  <button id="marcarTodosBtn" class="btn btn-secondary">Marcar todos</button>
-                  <button id="desmarcarTodosBtn" class="btn btn-outline">Desmarcar todos</button>
-                </div>
-              </div>
-              <ul id="listaAlunos" class="students-list">
-                <!-- preenchido via JS -->
-              </ul>
-            </section>
-
-            <!-- WhatsApp -->
-            <section class="card whatsapp-section">
-              <h2>Salvar chamada e gerar texto</h2>
-
-              <div class="whatsapp-actions">
-                <button id="gerarWhatsappBtn" class="btn btn-primary destaque">
-                  Adicionar / Atualizar chamada
-                </button>
-              </div>
-
-              <div class="generated-text-area">
-                <label for="textoGerado">Texto gerado</label>
-                <textarea
-                  id="textoGerado"
-                  rows="6"
-                  readonly
-                  placeholder="O texto da chamada aparecerá aqui após salvar a chamada."
-                ></textarea>
-              </div>
-
-              <div class="copy-send-actions">
-                <button id="copiarTextoBtn" class="btn btn-secondary">
-                  Copiar texto
-                </button>
-                <button id="enviarWhatsappBtn" class="btn btn-primary">
-                  Enviar no WhatsApp
-                </button>
-              </div>
-
-              <p id="mensagemStatus" class="status-message"></p>
-            </section>
-
-            <!-- Horários da turma -->
-            <section class="card schedule-section">
-              <h2>
-                Horários da Turma:
-                <span id="nomeTurmaHorario"></span>
-              </h2>
-              <div class="schedule-table-wrapper">
-                <table class="schedule-table">
-                  <thead>
-                    <tr>
-                      <th>Dia da Semana</th>
-                      <th>Horário</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tabelaHorarios">
-                    <!-- Preenchido via JavaScript -->
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </section>
-
-          <!-- ========== VIEW: RELATÓRIOS ========== -->
-          <section id="view-reports" class="view-section hidden">
-            <section class="card call-settings">
-              <div class="field-group">
-                <label for="turmaRelatorioSelect">Turma</label>
-                <select id="turmaRelatorioSelect"></select>
-              </div>
-              <div class="field-group">
-                <label for="mesRelatorio">Mês (YYYY-MM)</label>
-                <input type="month" id="mesRelatorio" />
-              </div>
-              <div class="field-group">
-                <label for="alunoRelatorioSelect">Aluno (visualização individual)</label>
-                <select id="alunoRelatorioSelect">
-                  <option value="">Selecione uma turma</option>
-                </select>
-              </div>
-            </section>
-
-            <section class="card">
-              <div class="field-group inline">
-                <div>
-                  <label for="dataCorrecao">Remover chamada do dia</label>
-                  <input type="date" id="dataCorrecao" />
-                  <small>Selecione a data da chamada errada desta turma.</small>
-                </div>
-                <button id="removerChamadaBtn" class="btn btn-outline">
-                  Remover chamada
-                </button>
-              </div>
-            </section>
-
-            <!-- Relatório mensal -->
-            <section class="card students-section report-section">
-              <div class="students-header">
-                <h3>Relatório Mensal da Turma</h3>
-                <button id="exportarPdfBtn" class="btn btn-secondary">
-                  Exportar PDF
-                </button>
-              </div>
-              <div class="schedule-table-wrapper">
-                <table class="schedule-table report-table">
-                  <thead>
-                    <tr>
-                      <th>Aluno</th>
-                      <th>Presenças</th>
-                      <th>Faltas</th>
-                      <th>Total de Aulas</th>
-                      <th>% Frequência</th>
-                    </tr>
-                  </thead>
-                  <tbody id="relatorioMensalBody">
-                    <!-- preenchido via JavaScript -->
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <!-- Individual -->
-            <section class="card students-section report-section">
-              <h3>Frequência Individual do Aluno</h3>
-              <div class="student-summary">
-                <div class="summary-item">
-                  <div class="summary-label">Total de aulas (no mês)</div>
-                  <div id="resumoTotalAulasAluno" class="summary-value">0</div>
-                </div>
-                <div class="summary-item">
-                  <div class="summary-label">Presenças</div>
-                  <div id="resumoPresencasAluno" class="summary-value">0</div>
-                </div>
-                <div class="summary-item">
-                  <div class="summary-label">Faltas</div>
-                  <div id="resumoFaltasAluno" class="summary-value">0</div>
-                </div>
-                <div class="summary-item">
-                  <div class="summary-label">Percentual de frequência</div>
-                  <div id="resumoPercentualAluno" class="summary-value">0%</div>
-                </div>
-              </div>
-
-              <div class="schedule-table-wrapper">
-                <table class="schedule-table report-table">
-                  <thead>
-                    <tr>
-                      <th>Data</th>
-                      <th>Situação</th>
-                    </tr>
-                  </thead>
-                  <tbody id="historicoAlunoBody">
-                    <!-- preenchido via JavaScript -->
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <!-- Lista de dias com chamada -->
-            <section class="card students-section report-section">
-              <h3>Dias com chamada registrada (mês/turma selecionados)</h3>
-              <p class="help-text">
-                Dias marcados como <strong>fora do dia de aula da turma</strong> provavelmente foram adicionados por engano.
-              </p>
-              <ul id="listaDiasChamada" class="days-list">
-                <!-- preenchido via JavaScript -->
-              </ul>
-            </section>
-
-            <!-- Calendário -->
-            <section class="card students-section report-section">
-              <h3>Calendário de Aulas da Turma</h3>
-              <div class="calendar-legend">
-                <div class="calendar-legend-item">
-                  <span class="calendar-status-dot calendar-status--ok"></span>
-                  <span>Dia de aula com chamada registrada</span>
-                </div>
-                <div class="calendar-legend-item">
-                  <span class="calendar-status-dot calendar-status--missing"></span>
-                  <span>Dia de aula sem chamada</span>
-                </div>
-                <div class="calendar-legend-item">
-                  <span class="calendar-status-dot calendar-status--partial"></span>
-                  <span>Chamada incompleta</span>
-                </div>
-              </div>
-              <div class="calendar-wrapper">
-                <table class="calendar-table">
-                  <thead>
-                    <tr>
-                      <th>Dom</th>
-                      <th>Seg</th>
-                      <th>Ter</th>
-                      <th>Qua</th>
-                      <th>Qui</th>
-                      <th>Sex</th>
-                      <th>Sáb</th>
-                    </tr>
-                  </thead>
-                  <tbody id="calendarioBody">
-                    <!-- preenchido via JavaScript -->
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </section>
-
-          <!-- ========== VIEW: CONFIGURAÇÕES ========== -->
-          <section id="view-settings" class="view-section hidden">
-            <section class="card">
-              <h2>Gerenciar Turmas</h2>
-              <form id="novaTurmaForm" class="inline-form">
-                <input type="text" id="novaTurmaNome" placeholder="Nome da turma" required>
-                <input type="text" id="novaTurmaDescricao" placeholder="Descrição (opcional)">
-                <button type="submit" class="btn btn-primary">Adicionar turma</button>
-              </form>
-              <ul id="listaTurmasConfig" class="simple-list">
-                <!-- turmas listadas via JS -->
-              </ul>
-            </section>
-
-            <section class="card">
-              <h2>Gerenciar Alunos da Turma Selecionada</h2>
-              <p class="help-text">Selecione uma turma no topo para adicionar alunos.</p>
-              <form id="novoAlunoForm" class="inline-form">
-                <input type="text" id="novoAlunoNome" placeholder="Nome do aluno" required>
-                <button type="submit" class="btn btn-secondary">Adicionar aluno</button>
-              </form>
-              <ul id="listaAlunosConfig" class="simple-list">
-                <!-- alunos da turma selecionada -->
-              </ul>
-            </section>
-
-            <section class="card">
-              <h2>Horários da Turma Selecionada</h2>
-              <form id="novoHorarioForm" class="inline-form">
-                <select id="novoHorarioDia">
-                  <option value="1">Segunda-feira</option>
-                  <option value="2">Terça-feira</option>
-                  <option value="3">Quarta-feira</option>
-                  <option value="4">Quinta-feira</option>
-                  <option value="5">Sexta-feira</option>
-                  <option value="6">Sábado</option>
-                  <option value="0">Domingo</option>
-                </select>
-                <input type="text" id="novoHorarioTexto" placeholder="Horário (ex: 17:00 – 18:30)" required>
-                <button type="submit" class="btn btn-secondary">Adicionar horário</button>
-              </form>
-              <ul id="listaHorariosConfig" class="simple-list">
-                <!-- horários da turma selecionada -->
-              </ul>
-            </section>
-          </section>
-        </main>
-
-        <footer class="footer">
-          <p>Sistema de chamada de presença • Feito por netinho, seu momo.</p>
-        </footer>
+        <button id="novaTurmaBtn" class="btn btn-primary">
+          + Nova turma
+        </button>
       </div>
+
+      <!-- Form inline para criar/editar turma -->
+      <form id="turmaForm" class="turma-form hidden">
+        <input type="hidden" id="turmaFormId" />
+        <div class="turma-form-fields">
+          <input
+            type="text"
+            id="turmaFormNome"
+            placeholder="Nome da turma"
+            required
+          />
+          <input
+            type="text"
+            id="turmaFormDescricao"
+            placeholder="Descrição (opcional)"
+          />
+          <button type="submit" class="btn btn-primary">
+            Salvar
+          </button>
+          <button type="button" id="cancelarTurmaFormBtn" class="btn btn-outline">
+            Cancelar
+          </button>
+        </div>
+        <p id="turmaFormStatus" class="status-message"></p>
+      </form>
+
+      <div id="turmasGrid" class="turmas-grid">
+        <!-- cards de turmas renderizados via JS -->
+      </div>
+    </section>
+
+    <!-- 2️⃣ DETALHE DA TURMA -->
+    <section id="turma-detail-view" class="hidden">
+      <div class="turma-detail-header">
+        <button id="voltarTurmasBtn" class="btn btn-outline">
+          ← Voltar para turmas
+        </button>
+        <div class="turma-detail-info">
+          <h2 id="turmaDetailNome"></h2>
+          <p id="turmaDetailInfo" class="help-text"></p>
+        </div>
+      </div>
+
+      <!-- Abas dentro da turma -->
+      <div class="turma-tabs">
+        <button class="turma-tab active" data-turma-tab="alunos">👥 Alunos</button>
+        <button class="turma-tab" data-turma-tab="chamada">📋 Chamada</button>
+        <button class="turma-tab" data-turma-tab="relatorios">📊 Relatórios</button>
+      </div>
+
+      <!-- 👥 Alunos -->
+      <section id="tab-alunos" class="turma-tab-content">
+        <div class="card">
+          <h3>Alunos da turma</h3>
+          <p class="help-text">
+            Adicione alunos rapidamente. Pressione Enter para adicionar.
+          </p>
+          <form id="novoAlunoForm" class="inline-form">
+            <input
+              type="text"
+              id="novoAlunoNome"
+              placeholder="Nome do aluno"
+              required
+            />
+            <button type="submit" class="btn btn-secondary">
+              Adicionar
+            </button>
+          </form>
+          <ul id="listaAlunosTurma" class="simple-list">
+            <!-- alunos via JS -->
+          </ul>
+        </div>
+      </section>
+
+      <!-- 📋 Chamada -->
+      <section id="tab-chamada" class="turma-tab-content hidden">
+        <div class="card">
+          <div class="chamada-header">
+            <div>
+              <h3>Chamada</h3>
+              <p class="help-text">
+                Selecione a data e marque cada aluno como presente ou ausente.
+              </p>
+            </div>
+            <div class="field-group">
+              <label for="dataChamada">Data</label>
+              <input type="date" id="dataChamada" />
+            </div>
+          </div>
+
+          <div id="listaAlunosChamada" class="lista-chamada">
+            <!-- linhas de chamada via JS -->
+          </div>
+
+          <div class="chamada-actions">
+            <button id="salvarChamadaBtn" class="btn btn-primary">
+              Salvar chamada
+            </button>
+          </div>
+          <p id="mensagemStatus" class="status-message"></p>
+        </div>
+      </section>
+
+      <!-- 📊 Relatórios -->
+      <section id="tab-relatorios" class="turma-tab-content hidden">
+        <div class="card">
+          <div class="relatorios-header">
+            <div>
+              <h3>Relatório da turma</h3>
+              <p class="help-text">
+                Selecione o mês para ver o resumo de frequência.
+              </p>
+            </div>
+            <div class="field-group">
+              <label for="mesRelatorio">Mês</label>
+              <input type="month" id="mesRelatorio" />
+            </div>
+          </div>
+
+          <!-- Resumo em tabela simples -->
+          <div class="schedule-table-wrapper">
+            <table class="schedule-table report-table">
+              <thead>
+                <tr>
+                  <th>Aluno</th>
+                  <th>Presenças</th>
+                  <th>Faltas</th>
+                  <th>Total</th>
+                  <th>%</th>
+                </tr>
+              </thead>
+              <tbody id="relatorioMensalBody">
+                <!-- via JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="relatorios-actions">
+            <button id="exportarPdfBtn" class="btn btn-secondary">
+              Exportar PDF
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Calendário de aulas</h3>
+          <div class="calendar-legend">
+            <div class="calendar-legend-item">
+              <span class="calendar-status-dot calendar-status--ok"></span>
+              <span>Dia de aula com chamada</span>
+            </div>
+            <div class="calendar-legend-item">
+              <span class="calendar-status-dot calendar-status--missing"></span>
+              <span>Dia de aula sem chamada</span>
+            </div>
+            <div class="calendar-legend-item">
+              <span class="calendar-status-dot calendar-status--partial"></span>
+              <span>Chamada incompleta</span>
+            </div>
+          </div>
+          <div class="calendar-wrapper">
+            <table class="calendar-table">
+              <thead>
+                <tr>
+                  <th>Dom</th>
+                  <th>Seg</th>
+                  <th>Ter</th>
+                  <th>Qua</th>
+                  <th>Qui</th>
+                  <th>Sex</th>
+                  <th>Sáb</th>
+                </tr>
+              </thead>
+              <tbody id="calendarioBody">
+                <!-- via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Sistema de chamada de presença • Feito por netinho, seu momo.</p>
+  </footer>
+</div>
     </div>
   </div>
 

@@ -4,317 +4,513 @@ import {
   listarHorarios,
   criarTurma,
   criarAluno,
-  criarHorario,
   salvarChamada,
   removerChamada,
   listarChamadasMes,
   obterChamadaPorData,
   formatarDataBR,
+  excluirTurma,
+  removerAluno,
 } from "./api.js";
-
-export const nomesDiasSemana = [
-  "Domingo",
-  "Segunda-feira",
-  "Terça-feira",
-  "Quarta-feira",
-  "Quinta-feira",
-  "Sexta-feira",
-  "Sábado",
-];
-
-const mapaDiaSemana = {
-  0: "Domingo",
-  1: "Segunda-feira",
-  2: "Terça-feira",
-  3: "Quarta-feira",
-  4: "Quinta-feira",
-  5: "Sexta-feira",
-  6: "Sábado",
-};
 
 export const uiState = {
   turmas: [],
-  turmaAtualId: null,
-  alunosTurmaAtual: [],
+  turmaAtual: null,       // objeto turma
+  alunosTurmaAtual: [],   // array de alunos
+  presencas: new Map(),   // alunoId -> true/false
 };
 
-/* --------- util status --------- */
-function setStatus(element, msg, erro = false) {
+const nomesDiasSemana = [
+  "Domingo",
+  "Segunda",
+  "Terça",
+  "Quarta",
+  "Quinta",
+  "Sexta",
+  "Sábado",
+];
+
+function setStatus(element, msg, erro = false, timeout = 3500) {
   if (!element) return;
   element.textContent = msg;
-  element.style.color = erro ? "#e53935" : "#4caf50";
-  if (msg) {
+  element.style.color = erro ? "#e53935" : "#22c55e";
+  if (msg && timeout) {
     setTimeout(() => {
       if (element.textContent === msg) element.textContent = "";
-    }, 4000);
+    }, timeout);
   }
 }
 
-/* --------- Navegação de views --------- */
-export function initNavigation() {
-  const navButtons = document.querySelectorAll(".nav-item");
-  const views = {
-    attendance: document.getElementById("view-attendance"),
-    reports: document.getElementById("view-reports"),
-    settings: document.getElementById("view-settings"),
+/* ================== Painel de turmas ================== */
+
+export async function carregarTurmasPainel() {
+  const turmas = await listarTurmas();
+  uiState.turmas = turmas;
+
+  const grid = document.getElementById("turmasGrid");
+  if (!grid) return;
+  grid.innerHTML = "";
+
+  if (!turmas.length) {
+    grid.innerHTML = "<p class='help-text'>Nenhuma turma cadastrada ainda.</p>";
+    return;
+  }
+
+  for (const turma of turmas) {
+    // alunos da turma para contagem
+    const alunos = await listarAlunos(turma.id);
+    const horarios = await listarHorarios(turma.id);
+
+    const numAlunos = alunos.length;
+    const diasSemanaSet = new Set(horarios.map((h) => h.dia_semana));
+    const diasSemanaStr =
+      diasSemanaSet.size > 0
+        ? Array.from(diasSemanaSet)
+            .sort()
+            .map((d) => nomesDiasSemana[d])
+            .join(", ")
+        : "Dias não cadastrados";
+
+    const card = document.createElement("div");
+    card.className = "turma-card";
+    card.innerHTML = `
+      <div class="turma-card-title">${turma.nome}</div>
+      <div class="turma-card-meta">${numAlunos} aluno(s)</div>
+      <div class="turma-card-dias">${diasSemanaStr}</div>
+      <div class="turma-card-actions">
+        <button class="btn btn-primary btn-abrir">Abrir</button>
+        <button class="btn btn-outline btn-editar">Editar</button>
+        <button class="btn btn-outline btn-excluir" style="color:#b91c1c;border-color:#fecaca;">
+          Excluir
+        </button>
+      </div>
+    `;
+
+    // listeners
+    card.querySelector(".btn-abrir").addEventListener("click", () => {
+      abrirTurma(turma.id);
+    });
+
+    card.querySelector(".btn-editar").addEventListener("click", () => {
+      abrirFormTurmaEdicao(turma);
+    });
+
+    card.querySelector(".btn-excluir").addEventListener("click", async () => {
+      const ok = confirm(
+        `Tem certeza que deseja excluir a turma "${turma.nome}"? Isso também removerá alunos e chamadas associadas.`
+      );
+      if (!ok) return;
+      try {
+        await excluirTurma(turma.id);
+        await carregarTurmasPainel();
+      } catch (e) {
+        alert(e.message || "Erro ao excluir turma.");
+      }
+    });
+
+    grid.appendChild(card);
+  }
+}
+
+let turmaFormInicializado = false;
+
+export function initTurmasUI() {
+  const novaTurmaBtn = document.getElementById("novaTurmaBtn");
+  const turmaForm = document.getElementById("turmaForm");
+  const cancelarTurmaFormBtn = document.getElementById("cancelarTurmaFormBtn");
+  const turmaFormNome = document.getElementById("turmaFormNome");
+  const turmaFormId = document.getElementById("turmaFormId");
+  const turmaFormStatus = document.getElementById("turmaFormStatus");
+
+  if (turmaFormInicializado) return;
+  turmaFormInicializado = true;
+
+  function mostrarForm(nova = true, turma = null) {
+    turmaForm.classList.remove("hidden");
+    turmaFormStatus.textContent = "";
+    if (nova) {
+      turmaFormId.value = "";
+      turmaFormNome.value = "";
+      document.getElementById("turmaFormDescricao").value = "";
+      turmaFormNome.focus();
+    } else if (turma) {
+      turmaFormId.value = turma.id;
+      turmaFormNome.value = turma.nome;
+      document.getElementById("turmaFormDescricao").value =
+        turma.descricao || "";
+      turmaFormNome.focus();
+    }
+  }
+
+  function esconderForm() {
+    turmaForm.classList.add("hidden");
+    turmaFormStatus.textContent = "";
+  }
+
+  if (novaTurmaBtn) {
+    novaTurmaBtn.addEventListener("click", () => mostrarForm(true));
+  }
+
+  if (cancelarTurmaFormBtn) {
+    cancelarTurmaFormBtn.addEventListener("click", () => esconderForm());
+  }
+
+  if (turmaForm) {
+    turmaForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      turmaFormStatus.textContent = "";
+      const nome = turmaFormNome.value.trim();
+      const desc = document.getElementById("turmaFormDescricao").value.trim();
+      if (!nome) return;
+
+      turmaForm
+        .querySelector("button[type='submit']")
+        .setAttribute("disabled", "disabled");
+
+      try {
+        if (turmaFormId.value) {
+          // edição simples: só nome/descrição
+          const turmaId = turmaFormId.value;
+          const turma = uiState.turmas.find((t) => t.id === turmaId);
+          if (turma) {
+            turma.nome = nome;
+            turma.descricao = desc;
+          }
+          // update no banco
+          const { supabase } = await import("./supabaseClient.js");
+          const { error } = await supabase
+            .from("turmas")
+            .update({ nome, descricao: desc })
+            .eq("id", turmaFormId.value);
+          if (error) throw error;
+        } else {
+          await criarTurma({ nome, descricao: desc });
+        }
+
+        setStatus(turmaFormStatus, "Turma salva.", false);
+        await carregarTurmasPainel();
+        esconderForm();
+      } catch (err) {
+        setStatus(
+          turmaFormStatus,
+          err.message || "Erro ao salvar turma.",
+          true,
+          5000
+        );
+      } finally {
+        turmaForm
+          .querySelector("button[type='submit']")
+          .removeAttribute("disabled");
+      }
+    });
+  }
+}
+
+function abrirFormTurmaEdicao(turma) {
+  const turmaForm = document.getElementById("turmaForm");
+  const turmaFormId = document.getElementById("turmaFormId");
+  const turmaFormNome = document.getElementById("turmaFormNome");
+  const turmaFormDescricao = document.getElementById("turmaFormDescricao");
+  const turmaFormStatus = document.getElementById("turmaFormStatus");
+  if (!turmaForm || !turmaFormId || !turmaFormNome) return;
+
+  turmaFormId.value = turma.id;
+  turmaFormNome.value = turma.nome;
+  if (turmaFormDescricao) turmaFormDescricao.value = turma.descricao || "";
+  turmaFormStatus.textContent = "";
+  turmaForm.classList.remove("hidden");
+}
+
+/* ================== Detalhe da turma ================== */
+
+async function abrirTurma(turmaId) {
+  const turma = uiState.turmas.find((t) => t.id === turmaId);
+  if (!turma) return;
+  uiState.turmaAtual = turma;
+
+  // carrega alunos
+  uiState.alunosTurmaAtual = await listarAlunos(turmaId);
+  uiState.presencas = new Map();
+
+  // header
+  document.getElementById("turmaDetailNome").textContent = turma.nome;
+  document.getElementById("turmaDetailInfo").textContent =
+    (turma.descricao || "") +
+    (uiState.alunosTurmaAtual.length
+      ? ` • ${uiState.alunosTurmaAtual.length} aluno(s)`
+      : "");
+
+  // mostra view de detalhe
+  document.getElementById("turmas-view").classList.add("hidden");
+  document.getElementById("turma-detail-view").classList.remove("hidden");
+
+  // abas
+  initTurmaTabs();
+  await renderTabAlunos();
+}
+
+export function initVoltarTurmas() {
+  const btn = document.getElementById("voltarTurmasBtn");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    document.getElementById("turmas-view").classList.remove("hidden");
+    document.getElementById("turma-detail-view").classList.add("hidden");
+    uiState.turmaAtual = null;
+    uiState.alunosTurmaAtual = [];
+    uiState.presencas = new Map();
+  });
+}
+
+function initTurmaTabs() {
+  const tabBtns = document.querySelectorAll(".turma-tab");
+  const tabContents = {
+    alunos: document.getElementById("tab-alunos"),
+    chamada: document.getElementById("tab-chamada"),
+    relatorios: document.getElementById("tab-relatorios"),
   };
 
-  navButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      navButtons.forEach((b) => b.classList.remove("active"));
+  tabBtns.forEach((btn) => {
+    btn.onclick = async () => {
+      const tab = btn.dataset.turmaTab;
+      tabBtns.forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
+      Object.values(tabContents).forEach((c) => c.classList.add("hidden"));
+      tabContents[tab].classList.remove("hidden");
 
-      const viewName = btn.dataset.view;
-      Object.values(views).forEach((v) => v.classList.add("hidden"));
-      views[viewName].classList.remove("hidden");
-    });
+      if (tab === "alunos") await renderTabAlunos();
+      if (tab === "chamada") await renderTabChamada();
+      if (tab === "relatorios") await renderTabRelatorios();
+    };
   });
 }
 
-/* --------- Carregar turmas em selects e sidebar --------- */
-export async function carregarTurmasUI() {
-  uiState.turmas = await listarTurmas();
+/* ================== Tab ALUNOS ================== */
 
-  const turmaSelect = document.getElementById("turmaSelect");
-  const turmaRelatorioSelect = document.getElementById("turmaRelatorioSelect");
-  const turmaGlobalSelect = document.getElementById("turmaGlobalSelect");
-  const turmaConfigList = document.getElementById("listaTurmasConfig");
+async function renderTabAlunos() {
+  const lista = document.getElementById("listaAlunosTurma");
+  if (!lista || !uiState.turmaAtual) return;
 
-  [turmaSelect, turmaRelatorioSelect, turmaGlobalSelect].forEach((sel) => {
-    if (!sel) return;
-    sel.innerHTML = "";
-    uiState.turmas.forEach((t, index) => {
-      const opt = document.createElement("option");
-      opt.value = t.id;
-      opt.textContent = t.nome;
-      if (index === 0) opt.selected = true;
-      sel.appendChild(opt);
-    });
-  });
+  uiState.alunosTurmaAtual = await listarAlunos(uiState.turmaAtual.id);
+  lista.innerHTML = "";
 
-  // lista lateral nas configurações
-  if (turmaConfigList) {
-    turmaConfigList.innerHTML = "";
-    uiState.turmas.forEach((t) => {
-      const li = document.createElement("li");
-      li.textContent = t.nome;
-      turmaConfigList.appendChild(li);
-    });
+  if (!uiState.alunosTurmaAtual.length) {
+    lista.innerHTML = `<li class="help-text">Nenhum aluno cadastrado.</li>`;
+    return;
   }
 
-  if (uiState.turmas.length > 0) {
-    uiState.turmaAtualId = uiState.turmas[0].id;
-  }
-
-  atualizarRotuloTurmaGlobal();
-}
-
-export function atualizarRotuloTurmaGlobal() {
-  const label = document.getElementById("turmaGlobalLabel");
-  const turma = uiState.turmas.find((t) => t.id === uiState.turmaAtualId);
-  if (label && turma) {
-    label.textContent = turma.descricao || turma.nome;
-  }
-}
-
-/* --------- Alunos / Horários / Chamada (tela principal) --------- */
-export async function atualizarTurmaAtual(novoId) {
-  uiState.turmaAtualId = novoId;
-
-  // Sincroniza selects principais
-  ["turmaSelect", "turmaRelatorioSelect", "turmaGlobalSelect"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.value = novoId;
-  });
-
-  atualizarRotuloTurmaGlobal();
-  await renderizarAlunosChamada();
-  await renderizarHorariosTurma();
-  await atualizarRelatorios();
-}
-
-export async function renderizarAlunosChamada() {
-  const turmaId = uiState.turmaAtualId;
-  if (!turmaId) return;
-
-  uiState.alunosTurmaAtual = await listarAlunos(turmaId);
-
-  const listaAlunos = document.getElementById("listaAlunos");
-  const tituloTurma = document.getElementById("tituloTurma");
-  const turma = uiState.turmas.find((t) => t.id === turmaId);
-
-  if (tituloTurma && turma) {
-    tituloTurma.textContent = `Alunos - ${turma.nome}`;
-  }
-
-  listaAlunos.innerHTML = "";
   uiState.alunosTurmaAtual.forEach((aluno) => {
     const li = document.createElement("li");
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.className = "aluno-checkbox";
-    cb.dataset.alunoId = aluno.id;
-
-    const label = document.createElement("label");
-    label.textContent = aluno.nome;
-
-    li.appendChild(cb);
-    li.appendChild(label);
-    listaAlunos.appendChild(li);
-  });
-
-  // tentar carregar chamada existente para a data selecionada
-  const dataInput = document.getElementById("dataChamada");
-  if (dataInput && dataInput.value) {
-    await carregarMarcacoesParaData(dataInput.value);
-  }
-
-  const textoGerado = document.getElementById("textoGerado");
-  if (textoGerado) textoGerado.value = "";
-}
-
-export async function carregarMarcacoesParaData(dataStr) {
-  const turmaId = uiState.turmaAtualId;
-  if (!turmaId || !dataStr) return;
-
-  const chamada = await obterChamadaPorData(turmaId, dataStr);
-  const checkboxes = document.querySelectorAll(".aluno-checkbox");
-
-  if (!chamada) {
-    checkboxes.forEach((cb) => (cb.checked = false));
-    return;
-  }
-
-  const mapaPresencas = new Map();
-  chamada.chamada_presencas.forEach((p) => {
-    mapaPresencas.set(p.aluno_id, p.presente);
-  });
-
-  checkboxes.forEach((cb) => {
-    const alunoId = cb.dataset.alunoId;
-    cb.checked = mapaPresencas.get(alunoId) === true;
-  });
-}
-
-export async function renderizarHorariosTurma() {
-  const turmaId = uiState.turmaAtualId;
-  if (!turmaId) return;
-  const horarios = await listarHorarios(turmaId);
-  const tabela = document.getElementById("tabelaHorarios");
-  const nomeTurmaHorario = document.getElementById("nomeTurmaHorario");
-  const turma = uiState.turmas.find((t) => t.id === turmaId);
-
-  if (nomeTurmaHorario && turma) {
-    nomeTurmaHorario.textContent = turma.nome;
-  }
-
-  tabela.innerHTML = "";
-  if (!horarios.length) {
-    tabela.innerHTML = `<tr><td colspan="2">Horários não cadastrados</td></tr>`;
-    return;
-  }
-
-  horarios.forEach((h) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${mapaDiaSemana[h.dia_semana]}</td>
-      <td>${h.horario_texto}</td>
+    li.innerHTML = `
+      <span>${aluno.nome}</span>
+      <button class="btn btn-outline btn-remover-aluno" data-aluno-id="${aluno.id}">
+        Remover
+      </button>
     `;
-    tabela.appendChild(tr);
+    lista.appendChild(li);
   });
+
+  lista.querySelectorAll(".btn-remover-aluno").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const alunoId = btn.dataset.alunoId;
+      const aluno = uiState.alunosTurmaAtual.find((a) => a.id === alunoId);
+      if (!aluno) return;
+      const ok = confirm(`Remover aluno "${aluno.nome}" da turma?`);
+      if (!ok) return;
+      try {
+        await removerAluno(alunoId);
+        await renderTabAlunos();
+      } catch (e) {
+        alert(e.message || "Erro ao remover aluno.");
+      }
+    });
+  });
+
+  // Form de adicionar aluno
+  const form = document.getElementById("novoAlunoForm");
+  if (form && !form.dataset.initialized) {
+    form.dataset.initialized = "true";
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!uiState.turmaAtual) return;
+      const input = document.getElementById("novoAlunoNome");
+      const nome = input.value.trim();
+      if (!nome) return;
+      try {
+        await criarAluno(uiState.turmaAtual.id, nome);
+        input.value = "";
+        await renderTabAlunos();
+      } catch (err) {
+        alert(err.message || "Erro ao adicionar aluno.");
+      }
+    });
+  }
 }
 
-/* --------- Salvar chamada + texto WhatsApp --------- */
-export async function salvarChamadaETexto() {
-  const turmaId = uiState.turmaAtualId;
-  const dataInput = document.getElementById("dataChamada");
-  const statusEl = document.getElementById("mensagemStatus");
-  const textoGerado = document.getElementById("textoGerado");
+/* ================== Tab CHAMADA ================== */
 
-  if (!turmaId || !dataInput.value) {
-    setStatus(statusEl, "Selecione uma turma e uma data.", true);
-    return;
+async function renderTabChamada() {
+  const lista = document.getElementById("listaAlunosChamada");
+  const dataInput = document.getElementById("dataChamada");
+  const salvarBtn = document.getElementById("salvarChamadaBtn");
+  const statusEl = document.getElementById("mensagemStatus");
+
+  if (!lista || !uiState.turmaAtual) return;
+
+  // data padrão: hoje
+  if (dataInput && !dataInput.value) {
+    const hoje = new Date();
+    dataInput.value = hoje.toISOString().split("T")[0];
   }
 
-  const presentesIds = [];
-  const presentesNomes = [];
-  const ausentesNomes = [];
+  uiState.alunosTurmaAtual = await listarAlunos(uiState.turmaAtual.id);
+  lista.innerHTML = "";
 
-  const turma = uiState.turmas.find((t) => t.id === turmaId);
+  if (!uiState.alunosTurmaAtual.length) {
+    lista.innerHTML =
+      "<p class='help-text'>Cadastre alunos na aba Alunos antes de fazer a chamada.</p>";
+    if (salvarBtn) salvarBtn.disabled = true;
+    return;
+  }
+  if (salvarBtn) salvarBtn.disabled = false;
 
-  document.querySelectorAll(".aluno-checkbox").forEach((cb) => {
-    const alunoId = cb.dataset.alunoId;
-    const aluno = uiState.alunosTurmaAtual.find((a) => a.id === alunoId);
-    if (!aluno) return;
+  uiState.presencas = new Map();
 
-    if (cb.checked) {
-      presentesIds.push(aluno.id);
-      presentesNomes.push(aluno.nome);
+  uiState.alunosTurmaAtual.forEach((aluno) => {
+    const row = document.createElement("div");
+    row.className = "chamada-row";
+    row.dataset.alunoId = aluno.id;
+
+    row.innerHTML = `
+      <span class="chamada-aluno-nome">${aluno.nome}</span>
+      <div class="chamada-buttons">
+        <button class="btn-presenca present">Presente</button>
+        <button class="btn-presenca absent">Ausente</button>
+      </div>
+    `;
+
+    const btnPresente = row.querySelector(".btn-presenca.present");
+    const btnAusente = row.querySelector(".btn-presenca.absent");
+
+    btnPresente.addEventListener("click", () => {
+      uiState.presencas.set(aluno.id, true);
+      btnPresente.classList.add("selected");
+      btnAusente.classList.remove("selected");
+    });
+
+    btnAusente.addEventListener("click", () => {
+      uiState.presencas.set(aluno.id, false);
+      btnAusente.classList.add("selected");
+      btnPresente.classList.remove("selected");
+    });
+
+    lista.appendChild(row);
+  });
+
+  // carregar chamada existente para a data
+  if (dataInput) {
+    await carregarChamadaParaData(dataInput.value);
+    dataInput.onchange = async (e) => {
+      await carregarChamadaParaData(e.target.value);
+    };
+  }
+
+  if (salvarBtn && !salvarBtn.dataset.initialized) {
+    salvarBtn.dataset.initialized = "true";
+    salvarBtn.addEventListener("click", async () => {
+      if (!dataInput.value) {
+        setStatus(statusEl, "Selecione uma data.", true);
+        return;
+      }
+      try {
+        const presentesIds = uiState.alunosTurmaAtual
+          .filter((a) => uiState.presencas.get(a.id) === true)
+          .map((a) => a.id);
+        await salvarChamada(
+          uiState.turmaAtual.id,
+          dataInput.value,
+          presentesIds,
+          uiState.alunosTurmaAtual
+        );
+        setStatus(statusEl, "Chamada salva com sucesso.");
+      } catch (err) {
+        setStatus(statusEl, err.message || "Erro ao salvar chamada.", true);
+      }
+    });
+  }
+}
+
+async function carregarChamadaParaData(dataStr) {
+  if (!uiState.turmaAtual || !dataStr) return;
+  const chamada = await obterChamadaPorData(uiState.turmaAtual.id, dataStr);
+
+  uiState.presencas = new Map();
+  const rows = document.querySelectorAll(".chamada-row");
+  rows.forEach((row) => {
+    const alunoId = row.dataset.alunoId;
+    const btnP = row.querySelector(".btn-presenca.present");
+    const btnA = row.querySelector(".btn-presenca.absent");
+    btnP.classList.remove("selected");
+    btnA.classList.remove("selected");
+
+    if (!chamada) {
+      // nenhum registro: deixa ambos desmarcados
+      return;
+    }
+
+    const reg = chamada.chamada_presencas?.find((p) => p.aluno_id === alunoId);
+    if (!reg) return;
+
+    uiState.presencas.set(alunoId, !!reg.presente);
+    if (reg.presente) {
+      btnP.classList.add("selected");
     } else {
-      ausentesNomes.push(aluno.nome);
+      btnA.classList.add("selected");
     }
   });
-
-  // salvar
-  await salvarChamada(turmaId, dataInput.value, presentesIds, uiState.alunosTurmaAtual);
-
-  // texto
-  let texto = `CHAMADA DE PRESENÇA\n`;
-  texto += `Turma: ${turma?.nome ?? ""}\n`;
-  texto += `Data: ${formatarDataBR(dataInput.value)}\n\n`;
-  texto += `Alunos presentes:\n`;
-  texto += presentesNomes.length
-    ? presentesNomes.map((n) => `- ${n}`).join("\n")
-    : "- Nenhum aluno presente.\n";
-  texto += `\nAlunos ausentes:\n`;
-  texto += ausentesNomes.length
-    ? ausentesNomes.map((n) => `- ${n}`).join("\n")
-    : "- Nenhum aluno ausente.";
-
-  if (textoGerado) textoGerado.value = texto;
-  setStatus(statusEl, "Chamada salva e texto gerado.");
-
-  await atualizarRelatorios();
 }
 
-export function copiarTexto() {
-  const texto = document.getElementById("textoGerado")?.value ?? "";
-  const statusEl = document.getElementById("mensagemStatus");
-  if (!texto) return;
-  navigator.clipboard.writeText(texto);
-  setStatus(statusEl, "Texto copiado!");
-}
+/* ================== Tab RELATÓRIOS ================== */
 
-export function enviarWhatsapp() {
-  const textoEl = document.getElementById("textoGerado");
-  const statusEl = document.getElementById("mensagemStatus");
+async function renderTabRelatorios() {
+  if (!uiState.turmaAtual) return;
 
-  let texto = textoEl?.value ?? "";
-  if (!texto) {
-    setStatus(statusEl, "Gere o texto primeiro.", true);
-    return;
-  }
-  const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
-  window.open(url, "_blank");
-}
-
-/* --------- Relatórios --------- */
-export async function atualizarRelatorios() {
-  await atualizarRelatorioMensal();
-  await atualizarResumoIndividual();
-  await renderCalendarioAulas();
-  await atualizarListaDiasChamada();
-}
-
-export async function atualizarRelatorioMensal() {
-  const turmaId = document.getElementById("turmaRelatorioSelect")?.value;
-  const mes = document.getElementById("mesRelatorio")?.value;
+  const mesInput = document.getElementById("mesRelatorio");
   const tbody = document.getElementById("relatorioMensalBody");
-  if (!tbody) return;
+
+  if (mesInput && !mesInput.value) {
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, "0");
+    mesInput.value = `${ano}-${mes}`;
+  }
+
+  async function atualizarTudo() {
+    if (!mesInput.value) return;
+    await atualizarTabelaRelatorio(mesInput.value);
+    await renderCalendario(mesInput.value);
+  }
+
+  if (mesInput && !mesInput.dataset.initialized) {
+    mesInput.dataset.initialized = "true";
+    mesInput.addEventListener("change", atualizarTudo);
+  }
+
+  if (tbody) tbody.innerHTML = "";
+  await atualizarTudo();
+
+  const exportarBtn = document.getElementById("exportarPdfBtn");
+  if (exportarBtn && !exportarBtn.dataset.initialized) {
+    exportarBtn.dataset.initialized = "true";
+    exportarBtn.addEventListener("click", exportarPdfRelatorio);
+  }
+}
+
+async function atualizarTabelaRelatorio(mes) {
+  const tbody = document.getElementById("relatorioMensalBody");
+  if (!tbody || !uiState.turmaAtual) return;
   tbody.innerHTML = "";
 
-  if (!turmaId || !mes) return;
-
+  const turmaId = uiState.turmaAtual.id;
   const alunos = await listarAlunos(turmaId);
   const chamadas = await listarChamadasMes(turmaId, mes);
   const totalDias = chamadas.length;
@@ -349,124 +545,17 @@ export async function atualizarRelatorioMensal() {
 
   if (!totalDias) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="5">Nenhuma chamada registrada para este mês/turma.</td>`;
+    tr.innerHTML = `<td colspan="5">Nenhuma chamada registrada neste mês.</td>`;
     tbody.appendChild(tr);
   }
 }
 
-export async function atualizarResumoIndividual() {
-  const alunoNome = document.getElementById("alunoRelatorioSelect")?.value;
-  const turmaId = document.getElementById("turmaRelatorioSelect")?.value;
-  const mes = document.getElementById("mesRelatorio")?.value;
-
-  const totalEl = document.getElementById("resumoTotalAulasAluno");
-  const presEl = document.getElementById("resumoPresencasAluno");
-  const faltEl = document.getElementById("resumoFaltasAluno");
-  const percEl = document.getElementById("resumoPercentualAluno");
-  const historicoBody = document.getElementById("historicoAlunoBody");
-
-  if (!totalEl || !presEl || !faltEl || !percEl || !historicoBody) return;
-
-  historicoBody.innerHTML = "";
-  totalEl.textContent = "0";
-  presEl.textContent = "0";
-  faltEl.textContent = "0";
-  percEl.textContent = "0%";
-
-  if (!alunoNome || !turmaId || !mes) return;
-
-  const alunos = await listarAlunos(turmaId);
-  const aluno = alunos.find((a) => a.nome === alunoNome);
-  if (!aluno) return;
-
-  const chamadas = await listarChamadasMes(turmaId, mes);
-  const datas = chamadas.map((c) => c.data).sort();
-  const totalDias = datas.length;
-  let presencas = 0;
-
-  chamadas.forEach((ch) => {
-    const reg = ch.chamada_presencas?.find((p) => p.aluno_id === aluno.id);
-    const presente = !!reg?.presente;
-    if (presente) presencas++;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${formatarDataBR(ch.data)}</td>
-      <td>${presente ? "Presente" : "Ausente"}</td>
-    `;
-    historicoBody.appendChild(tr);
-  });
-
-  const faltas = totalDias - presencas;
-  const perc = totalDias > 0 ? ((presencas / totalDias) * 100).toFixed(1) : "0.0";
-
-  totalEl.textContent = String(totalDias);
-  presEl.textContent = String(presencas);
-  faltEl.textContent = String(faltas);
-  percEl.textContent = `${perc}%`;
-}
-
-export async function atualizarListaDiasChamada() {
-  const lista = document.getElementById("listaDiasChamada");
-  const turmaId = document.getElementById("turmaRelatorioSelect")?.value;
-  const mes = document.getElementById("mesRelatorio")?.value;
-  const dataCorrecao = document.getElementById("dataCorrecao");
-
-  if (!lista) return;
-  lista.innerHTML = "";
-
-  if (!turmaId || !mes) {
-    const li = document.createElement("li");
-    li.textContent = "Selecione uma turma e um mês.";
-    lista.appendChild(li);
-    return;
-  }
-
-  const chamadas = await listarChamadasMes(turmaId, mes);
-  if (!chamadas.length) {
-    const li = document.createElement("li");
-    li.textContent = "Nenhuma chamada registrada para este mês/turma.";
-    lista.appendChild(li);
-    return;
-  }
-
-  // mapear dias de aula pela tabela de horários
-  const horarios = await listarHorarios(turmaId);
-  const diasSemanaTurma = new Set(horarios.map((h) => h.dia_semana));
-
-  chamadas.forEach((ch) => {
-    const [ano, m, d] = ch.data.split("-").map(Number);
-    const dataObj = new Date(ano, m - 1, d);
-    const diaSem = dataObj.getDay();
-    const isDiaAula = diasSemanaTurma.has(diaSem);
-
-    const li = document.createElement("li");
-    li.innerHTML = `
-      ${formatarDataBR(ch.data)} - ${nomesDiasSemana[diaSem]}
-      ${isDiaAula ? "" : '<span class="day-warning">(fora do dia de aula da turma)</span>'}
-    `;
-
-    if (dataCorrecao) {
-      li.style.cursor = "pointer";
-      li.title = "Clique para selecionar esta data para correção";
-      li.addEventListener("click", () => {
-        dataCorrecao.value = ch.data;
-      });
-    }
-
-    lista.appendChild(li);
-  });
-}
-
-export async function renderCalendarioAulas() {
+async function renderCalendario(mes) {
   const tbody = document.getElementById("calendarioBody");
-  const turmaId = document.getElementById("turmaRelatorioSelect")?.value;
-  const mes = document.getElementById("mesRelatorio")?.value;
-
-  if (!tbody) return;
+  if (!tbody || !uiState.turmaAtual) return;
   tbody.innerHTML = "";
-  if (!turmaId || !mes) return;
 
+  const turmaId = uiState.turmaAtual.id;
   const horarios = await listarHorarios(turmaId);
   const diasSemanaTurma = new Set(horarios.map((h) => h.dia_semana));
 
@@ -481,6 +570,9 @@ export async function renderCalendarioAulas() {
   const mapaChamadas = new Map();
   chamadas.forEach((c) => mapaChamadas.set(c.data, c));
 
+  const alunos = await listarAlunos(turmaId);
+  const totalAlunos = alunos.length;
+
   let diaAtual = 1;
   for (let semana = 0; semana < 6 && diaAtual <= totalDiasMes; semana++) {
     const tr = document.createElement("tr");
@@ -491,17 +583,17 @@ export async function renderCalendarioAulas() {
       if ((semana === 0 && ds < diaSemanaPrimeiro) || diaAtual > totalDiasMes) {
         td.innerHTML = "";
       } else {
-        const dataStr = `${ano}-${String(mesIndex + 1).padStart(2, "0")}-${String(
-          diaAtual
-        ).padStart(2, "0")}`;
-
-        const diaSemanaNumero = ds;
-        const isDiaAula = diasSemanaTurma.has(diaSemanaNumero);
-
+        const dataStr = `${ano}-${String(mesIndex + 1).padStart(
+          2,
+          "0"
+        )}-${String(diaAtual).padStart(2, "0")}`;
         const numDiv = document.createElement("div");
         numDiv.classList.add("calendar-day-number");
         numDiv.textContent = diaAtual;
         td.appendChild(numDiv);
+
+        const diaSemanaNumero = ds;
+        const isDiaAula = diasSemanaTurma.has(diaSemanaNumero);
 
         if (isDiaAula) {
           const registro = mapaChamadas.get(dataStr);
@@ -510,7 +602,6 @@ export async function renderCalendarioAulas() {
 
           if (registro) {
             const totalReg = registro.chamada_presencas?.length ?? 0;
-            const totalAlunos = (await listarAlunos(turmaId)).length;
             if (totalReg >= totalAlunos && totalAlunos > 0) {
               dot.classList.add("calendar-status--ok");
               dot.title = "Chamada completa";
@@ -527,102 +618,27 @@ export async function renderCalendarioAulas() {
 
         diaAtual++;
       }
-
       tr.appendChild(td);
     }
     tbody.appendChild(tr);
   }
 }
 
-/* --------- Configurações: alunos e horários --------- */
-export async function initConfigForms() {
-  const turmaSelect = document.getElementById("turmaSelect");
-  const novoAlunoForm = document.getElementById("novoAlunoForm");
-  const novoHorarioForm = document.getElementById("novoHorarioForm");
-  const novaTurmaForm = document.getElementById("novaTurmaForm");
-  const statusEl = document.getElementById("mensagemStatus"); // aproveito o mesmo
+/* ================== Exportar PDF ================== */
 
-  if (novaTurmaForm) {
-    novaTurmaForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const nome = document.getElementById("novaTurmaNome").value.trim();
-      const desc = document.getElementById("novaTurmaDescricao").value.trim();
-      if (!nome) return;
-      await criarTurma({ nome, descricao: desc });
-      await carregarTurmasUI();
-      if (turmaSelect) turmaSelect.value = uiState.turmaAtualId;
-      setStatus(statusEl, "Turma criada.");
-      novaTurmaForm.reset();
-    });
-  }
-
-  if (novoAlunoForm) {
-    novoAlunoForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (!uiState.turmaAtualId) return;
-      const nome = document.getElementById("novoAlunoNome").value.trim();
-      if (!nome) return;
-      await criarAluno(uiState.turmaAtualId, nome);
-      await renderizarAlunosChamada();
-      setStatus(statusEl, "Aluno adicionado.");
-      novoAlunoForm.reset();
-    });
-  }
-
-  if (novoHorarioForm) {
-    novoHorarioForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (!uiState.turmaAtualId) return;
-      const dia = parseInt(document.getElementById("novoHorarioDia").value, 10);
-      const texto = document.getElementById("novoHorarioTexto").value.trim();
-      if (!texto) return;
-      await criarHorario(uiState.turmaAtualId, dia, texto);
-      await renderizarHorariosTurma();
-      setStatus(statusEl, "Horário adicionado.");
-      novoHorarioForm.reset();
-    });
-  }
-}
-
-/* --------- Correção de chamadas / PDF --------- */
-export async function removerChamadaDia() {
-  const turmaId = document.getElementById("turmaRelatorioSelect")?.value;
-  const data = document.getElementById("dataCorrecao")?.value;
-  const statusEl = document.getElementById("mensagemStatus");
-
-  if (!turmaId || !data) {
-    setStatus(statusEl, "Selecione turma e data para remover.", true);
-    return;
-  }
-
-  const ok = confirm(`Remover chamada do dia ${formatarDataBR(data)}?`);
-  if (!ok) return;
-
-  const removed = await removerChamada(turmaId, data);
-  if (!removed) {
-    setStatus(statusEl, "Não há chamada nessa data.", true);
-    return;
-  }
-
-  await atualizarRelatorios();
-  setStatus(statusEl, "Chamada removida.");
-}
-
-export function exportarPdfRelatorio() {
-  const turmaId = document.getElementById("turmaRelatorioSelect")?.value;
+function exportarPdfRelatorio() {
+  if (!uiState.turmaAtual) return;
+  const turma = uiState.turmaAtual;
   const mes = document.getElementById("mesRelatorio")?.value;
   const tbodyHtml = document.getElementById("relatorioMensalBody")?.innerHTML ?? "";
-  const turma = uiState.turmas.find((t) => t.id === turmaId);
-
-  if (!turmaId || !mes || !turma) return;
+  if (!mes) return;
 
   const [ano, mesNum] = mes.split("-");
   const tituloMes = `${mesNum}/${ano}`;
+  const win = window.open("", "_blank");
+  if (!win) return;
 
-  const novaJanela = window.open("", "_blank");
-  if (!novaJanela) return;
-
-  novaJanela.document.write(`<!DOCTYPE html>
+  win.document.write(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -631,33 +647,22 @@ export function exportarPdfRelatorio() {
   body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     margin: 20px;
-    color: #333333;
+    color: #333;
   }
-  h1 {
-    font-size: 18px;
-    margin-bottom: 4px;
-  }
-  h2 {
-    font-size: 16px;
-    margin-bottom: 12px;
-  }
-  .meta {
-    font-size: 12px;
-    margin-bottom: 16px;
-  }
+  h1 { font-size: 18px; margin-bottom: 4px; }
+  h2 { font-size: 16px; margin-bottom: 12px; }
+  .meta { font-size: 12px; margin-bottom: 16px; }
   table {
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
   }
   th, td {
-    border: 1px solid #dddddd;
+    border: 1px solid #ddd;
     padding: 6px 4px;
     text-align: left;
   }
-  th {
-    background-color: #f5f5f5;
-  }
+  th { background-color: #f5f5f5; }
 </style>
 </head>
 <body>
@@ -686,5 +691,5 @@ export function exportarPdfRelatorio() {
   <\/script>
 </body>
 </html>`);
-  novaJanela.document.close();
+  win.document.close();
 }

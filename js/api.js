@@ -46,19 +46,40 @@ export async function listarTurmas() {
 }
 
 export async function criarTurma({ nome, descricao }) {
+  const nomeLimpo = nome.trim();
+  if (!nomeLimpo) throw new Error("Informe o nome da turma.");
+
+  // pega professor atual
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Usuário não autenticado.");
+
   const { data: prof, error: errProf } = await supabase
     .from("professores")
     .select("id")
-    .eq("auth_user_id", (await supabase.auth.getUser()).data.user.id)
+    .eq("auth_user_id", user.id)
     .single();
 
   if (errProf) throw errProf;
+
+  // checagem de duplicidade por nome para este professor
+  const { data: turmaExistente, error: dupErr } = await supabase
+    .from("turmas")
+    .select("id")
+    .eq("professor_id", prof.id)
+    .ilike("nome", nomeLimpo)
+    .maybeSingle();
+
+  if (dupErr && dupErr.code !== "PGRST116") throw dupErr;
+
+  if (turmaExistente) {
+    throw new Error("Já existe uma turma com este nome.");
+  }
 
   const { data, error } = await supabase
     .from("turmas")
     .insert({
       professor_id: prof.id,
-      nome,
+      nome: nomeLimpo,
       descricao,
     })
     .select("*")
@@ -198,4 +219,22 @@ export async function listarChamadasMes(turmaId, mesStr) {
 
   if (error) throw error;
   return data || [];
+}
+export async function excluirTurma(turmaId) {
+  const { error } = await supabase
+    .from("turmas")
+    .delete()
+    .eq("id", turmaId);
+
+  if (error) throw error;
+}
+
+export async function removerAluno(alunoId) {
+  // soft delete: marca inativo para não quebrar relatórios antigos
+  const { error } = await supabase
+    .from("alunos")
+    .update({ ativo: false })
+    .eq("id", alunoId);
+
+  if (error) throw error;
 }
