@@ -821,15 +821,48 @@ async function mostrarDetalhesCalendario(data, presentes, ausentes, total, statu
 
 /* ================== Exportar PDF ================== */
 
-function exportarPdfRelatorio() {
+async function exportarPdfRelatorio() {
   if (!uiState.turmaAtual) return;
   const turma = uiState.turmaAtual;
   const mes = document.getElementById("mesRelatorio")?.value;
-  const tbodyHtml = document.getElementById("relatorioMensalBody")?.innerHTML ?? "";
   if (!mes) return;
 
-  const [ano, mesNum] = mes.split("-");
-  const tituloMes = `${mesNum}/${ano}`;
+  const [anoStr, mesNumStr] = mes.split("-");
+  const ano = parseInt(anoStr, 10);
+  const mesIndex = parseInt(mesNumStr, 10) - 1;
+  const tituloMes = `${mesNumStr}/${ano}`;
+
+  const alunos = await listarAlunos(turma.id);
+  const chamadasDoMes = await listarChamadasMes(turma.id, mes);
+
+  const totalDiasMes = new Date(ano, mesIndex + 1, 0).getDate();
+  const nomesDiasSemanaCurto = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+
+  let detalhesDiariosHtml = '';
+  for (let diaAtual = 1; diaAtual <= totalDiasMes; diaAtual++) {
+    const dataStr = `${anoStr}-${String(mesIndex + 1).padStart(2, "0")}-${String(diaAtual).padStart(2, "0")}`;
+    const dataObj = new Date(ano, mesIndex, diaAtual);
+    const diaSemanaNome = nomesDiasSemanaCurto[dataObj.getDay()];
+
+    const chamadaDoDia = chamadasDoMes.find(c => c.data === dataStr);
+
+    if (chamadaDoDia) {
+      detalhesDiariosHtml += `
+        <div class="dia-detalhe">
+          <h3>Dia ${diaAtual} (${diaSemanaNome})</h3>
+          <ul>
+      `;
+      alunos.forEach(aluno => {
+        const presenca = chamadaDoDia.chamada_presencas.find(p => p.aluno_id === aluno.id);
+        const status = presenca?.presente ? 'Presente' : 'Ausente';
+        detalhesDiariosHtml += `<li>Aluno ${aluno.nome}: ${status}</li>`;
+      });
+      detalhesDiariosHtml += `</ul></div>`;
+    }
+  }
+
+  const tbodyHtml = document.getElementById("relatorioMensalBody")?.innerHTML ?? "";
+
   const win = window.open("", "_blank");
   if (!win) return;
 
@@ -846,11 +879,13 @@ function exportarPdfRelatorio() {
   }
   h1 { font-size: 18px; margin-bottom: 4px; }
   h2 { font-size: 16px; margin-bottom: 12px; }
+  h3 { font-size: 14px; margin-top: 15px; margin-bottom: 5px; color: #555; }
   .meta { font-size: 12px; margin-bottom: 16px; }
   table {
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
+    margin-bottom: 20px;
   }
   th, td {
     border: 1px solid #ddd;
@@ -858,6 +893,8 @@ function exportarPdfRelatorio() {
     text-align: left;
   }
   th { background-color: #f5f5f5; }
+  .dia-detalhe ul { list-style: none; padding: 0; margin: 0; }
+  .dia-detalhe li { font-size: 11px; margin-bottom: 2px; }
 </style>
 </head>
 <body>
@@ -867,6 +904,8 @@ function exportarPdfRelatorio() {
     <div><strong>Turma:</strong> ${turma.nome}</div>
     <div><strong>Mês:</strong> ${tituloMes}</div>
   </div>
+  
+  <h3>Resumo Mensal</h3>
   <table>
     <thead>
       <tr>
@@ -881,6 +920,12 @@ function exportarPdfRelatorio() {
       ${tbodyHtml}
     </tbody>
   </table>
+
+  <h3>Detalhes Diários</h3>
+  <div class="detalhes-diarios">
+    ${detalhesDiariosHtml}
+  </div>
+
   <script>
     window.onload = function() { window.print(); };
   <\/script>
