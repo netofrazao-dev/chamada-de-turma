@@ -580,8 +580,6 @@ async function renderCalendario(mes) {
   if (!container || !uiState.turmaAtual) return;
 
   const turmaId = uiState.turmaAtual.id;
-  const horarios = await listarHorarios(turmaId);
-  const diasSemanaTurma = new Set(horarios.map((h) => h.dia_semana));
 
   const [anoStr, mesStr] = mes.split("-");
   const ano = parseInt(anoStr, 10);
@@ -590,6 +588,7 @@ async function renderCalendario(mes) {
   const diaSemanaPrimeiro = primeiroDia.getDay();
   const totalDiasMes = new Date(ano, mesIndex + 1, 0).getDate();
 
+  // Buscar TODAS as chamadas do mês, independentemente dos horários
   const chamadas = await listarChamadasMes(turmaId, mes);
   const mapaChamadas = new Map();
   chamadas.forEach((c) => mapaChamadas.set(c.data, c));
@@ -630,8 +629,6 @@ async function renderCalendario(mes) {
   // Dias do mês
   for (let diaAtual = 1; diaAtual <= totalDiasMes; diaAtual++) {
     const dataStr = `${ano}-${String(mesIndex + 1).padStart(2, "0")}-${String(diaAtual).padStart(2, "0")}`;
-    const diaSemanaNumero = (diaSemanaPrimeiro + diaAtual - 1) % 7;
-    const isDiaAula = diasSemanaTurma.has(diaSemanaNumero);
     const isHoje = dataStr === dataHoje;
 
     const dayDiv = document.createElement("div");
@@ -639,30 +636,34 @@ async function renderCalendario(mes) {
 
     if (isHoje) dayDiv.classList.add("calendar-today");
 
-    if (isDiaAula) {
-      const registro = mapaChamadas.get(dataStr);
+    // Verificar se há chamada registrada para este dia
+    const registro = mapaChamadas.get(dataStr);
+    
+    if (registro) {
+      // DIA COM CHAMADA REGISTRADA
       let statusClass = "calendar-no-call";
       let statusIcon = "⚠️";
       let statusTitle = "Sem chamada";
-      let temChamada = false;
+      let temChamada = true;
       let presentes = 0;
       let ausentes = 0;
 
-      if (registro) {
-        temChamada = true;
-        const totalReg = registro.chamada_presencas?.length ?? 0;
-        presentes = registro.chamada_presencas?.filter(p => p.presente).length ?? 0;
-        ausentes = totalReg - presentes;
+      const totalReg = registro.chamada_presencas?.length ?? 0;
+      presentes = registro.chamada_presencas?.filter(p => p.presente).length ?? 0;
+      ausentes = totalReg - presentes;
 
-        if (totalReg >= totalAlunos && totalAlunos > 0) {
-          statusClass = "calendar-complete";
-          statusIcon = "✓";
-          statusTitle = "Chamada completa";
-        } else {
-          statusClass = "calendar-partial";
-          statusIcon = "◐";
-          statusTitle = "Chamada parcial";
-        }
+      if (totalReg >= totalAlunos && totalAlunos > 0) {
+        statusClass = "calendar-complete";
+        statusIcon = "✓";
+        statusTitle = "Chamada completa";
+      } else if (totalReg > 0) {
+        statusClass = "calendar-partial";
+        statusIcon = "◐";
+        statusTitle = "Chamada parcial";
+      } else {
+        statusClass = "calendar-no-call";
+        statusIcon = "⚠️";
+        statusTitle = "Sem chamada";
       }
 
       dayDiv.classList.add(statusClass);
@@ -673,23 +674,24 @@ async function renderCalendario(mes) {
       dayDiv.dataset.temChamada = temChamada;
       dayDiv.title = statusTitle;
 
-      // Renderizar com indicador visual mais forte
+      // Renderizar com indicador visual
       dayDiv.innerHTML = `
         <div class="calendar-day-number-novo">${diaAtual}</div>
         <div class="calendar-day-status">${statusIcon}</div>
-        ${temChamada ? '<div class="calendar-has-call-indicator"></div>' : ''}
+        <div class="calendar-has-call-indicator"></div>
       `;
 
       // Clique para ver detalhes
       dayDiv.addEventListener("click", () => {
-        mostrarDetalhesCalendario(dataStr, presentes, ausentes, totalAlunos, statusTitle);
+        mostrarDetalhesCalendario(dataStr, presentes, ausentes, totalAlunos, statusTitle, mes);
       });
 
       dayDiv.style.cursor = "pointer";
     } else {
+      // DIA SEM CHAMADA REGISTRADA - mostrar em cinza
       dayDiv.classList.add("calendar-no-class");
       dayDiv.innerHTML = `<div class="calendar-day-number-novo">${diaAtual}</div>`;
-      dayDiv.title = "Sem aula";
+      dayDiv.title = "Sem chamada registrada";
     }
 
     diasGrid.appendChild(dayDiv);
@@ -726,7 +728,7 @@ async function renderCalendario(mes) {
   container.appendChild(legenda);
 }
 
-function mostrarDetalhesCalendario(data, presentes, ausentes, total, status) {
+async function mostrarDetalhesCalendario(data, presentes, ausentes, total, status, mesAtual) {
   const modal = document.getElementById("calendarDetailModal");
   if (!modal) return;
 
@@ -737,6 +739,10 @@ function mostrarDetalhesCalendario(data, presentes, ausentes, total, status) {
     month: "long",
     day: "numeric"
   });
+
+  // Verificar se existe chamada para esta data
+  const chamada = await obterChamadaPorData(uiState.turmaAtual.id, data);
+  const temChamada = !!chamada;
 
   modal.innerHTML = `
     <div class="modal-content">
@@ -768,6 +774,13 @@ function mostrarDetalhesCalendario(data, presentes, ausentes, total, status) {
         <div class="detail-progress">
           <div class="progress-bar" style="width: ${percentual}%"></div>
         </div>
+        ${temChamada ? `
+          <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+            <button id="btnRemoverChamada" class="btn btn-outline" style="width: 100%; color: #b91c1c; border-color: #fecaca;">
+              🗑️ Remover Chamada
+            </button>
+          </div>
+        ` : ''}
       </div>
     </div>
   `;
@@ -778,6 +791,32 @@ function mostrarDetalhesCalendario(data, presentes, ausentes, total, status) {
   modal.addEventListener("click", (e) => {
     if (e.target === modal) modal.classList.add("hidden");
   });
+
+  // Adicionar listener para remover chamada se ela existir
+  if (temChamada) {
+    const btnRemover = document.getElementById("btnRemoverChamada");
+    if (btnRemover) {
+      btnRemover.addEventListener("click", async () => {
+        const confirmar = confirm(
+          `Tem certeza que deseja remover a chamada de ${dataFormatada}? Esta ação não pode ser desfeita.`
+        );
+        if (!confirmar) return;
+
+        try {
+          await removerChamada(uiState.turmaAtual.id, data);
+          modal.classList.add("hidden");
+          
+          // Recarregar o calendário para refletir a mudança
+          await renderCalendario(mesAtual);
+          
+          // Mostrar mensagem de sucesso
+          alert("Chamada removida com sucesso!");
+        } catch (err) {
+          alert(err.message || "Erro ao remover chamada.");
+        }
+      });
+    }
+  }
 }
 
 /* ================== Exportar PDF ================== */
