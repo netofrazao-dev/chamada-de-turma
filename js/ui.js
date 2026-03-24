@@ -12,6 +12,7 @@ import {
   excluirTurma,
   removerAluno,
 } from "./api.js";
+  import { getCurrentUser } from "./auth.js";
 
 export const uiState = {
   turmas: [],
@@ -827,6 +828,9 @@ async function exportarPdfRelatorio() {
   const mes = document.getElementById("mesRelatorio")?.value;
   if (!mes) return;
 
+  const user = await getCurrentUser();
+const nomeProfessor = user?.user_metadata?.nome || "Professor";
+
   const [anoStr, mesNumStr] = mes.split("-");
   const ano = parseInt(anoStr, 10);
   const mesIndex = parseInt(mesNumStr, 10) - 1;
@@ -898,7 +902,7 @@ async function exportarPdfRelatorio() {
 </style>
 </head>
 <body>
-  <h1>Escola: CLS<br>Teacher: JHENNY</h1>
+  <h1><br>Professor(a): ${nomeProfessor}</h1>
   <h2>Relatório de Frequência Mensal</h2>
   <div class="meta">
     <div><strong>Turma:</strong> ${turma.nome}</div>
