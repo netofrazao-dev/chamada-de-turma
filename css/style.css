@@ -1888,3 +1888,63 @@ textarea {
   background: #ef4444;
   box-shadow: 0 0 3px rgba(239, 68, 68, 0.6);
 }
+
+      /* LOGO LOGIN*/
+.auth-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+
+/* símbolo menor */
+.auth-title img:first-child {
+  height: 50px;
+  width: auto;
+}
+
+/* logo principal GIGANTE */
+#chamada-escolar img {
+  height: 110px; /* 🚀 AQUI FICOU GRANDE MESMO */
+  width: auto;
+  object-fit: contain;
+
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.25));
+}
+@media (max-width: 480px) {
+  .auth-title img:first-child {
+    height: 40px;
+  }
+
+  #chamada-escolar img {
+    height: 65px;
+  }
+}
+
+.auth-title {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* AQUI É O QUE IMPORTA */
+.auth-title img {
+  height: 130px !important; /* 🔥 AUMENTA AQUI */
+  width: auto;
+  display: block;
+}
+
+
+      /* LOGO PAGINA DOS PROFESSORES*/
+.app-title {
+  display: flex;
+  align-items: center;
+}
+
+.app-title img {
+  height: 52px; /* 🔥 AUMENTEI AQUI */
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
