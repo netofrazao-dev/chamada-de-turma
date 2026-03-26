@@ -1948,3 +1948,303 @@ textarea {
   display: block;
   object-fit: contain;
 }
+
+/* ===========================
+   PAINEL ADMIN
+   =========================== */
+
+.admin-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0.4rem;
+}
+
+.admin-tab {
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #374151;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.admin-tab:hover {
+  background: #f3f4f6;
+}
+
+.admin-tab.active {
+  background: #1565c0;
+  color: #ffffff;
+}
+
+.admin-tab-content {
+  width: 100%;
+}
+
+.admin-tab-content.hidden {
+  display: none !important;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.section-header h3 {
+  margin: 0 0 0.3rem 0;
+  font-size: 1.1rem;
+  color: #1565c0;
+}
+
+.admin-filters {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.admin-filters .field-group {
+  min-width: 160px;
+}
+
+/* Badges de status de turma */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-ativo {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.status-inativo {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Badges de role */
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.role-admin {
+  background-color: #e0f2fe;
+  color: #0369a1;
+}
+
+.role-professor {
+  background-color: #f3e8ff;
+  color: #6d28d9;
+}
+
+/* Tabela: texto secundário */
+.table-subtext {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+/* Lista de dias com/sem chamada no admin */
+.dias-chamadas-lista {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.dia-chamada {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.85rem;
+}
+
+.dia-chamada:last-child {
+  border-bottom: none;
+}
+
+.dia-com-chamada {
+  color: #166534;
+}
+
+.dia-sem-chamada {
+  color: #b91c1c;
+}
+
+/* Célula de ações na tabela de emails */
+.actions-cell {
+  text-align: right;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  min-height: 32px;
+}
+
+/* Responsividade do painel admin */
+@media (max-width: 768px) {
+  .admin-filters {
+    flex-direction: column;
+  }
+
+  .admin-filters .field-group {
+    width: 100%;
+  }
+}
+
+/* ====== Painel Admin – Visão Geral em forma hierárquica ====== */
+
+.admin-professores-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-professor-group {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  overflow: hidden;
+}
+
+/* Cabeçalho (botão do accordion) */
+.admin-prof-header {
+  width: 100%;
+  border: none;
+  background: #ffffff;
+  padding: 0.7rem 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease-in-out;
+}
+
+.admin-prof-header:hover {
+  background: #f3f4f6;
+}
+
+.admin-prof-header.open {
+  background: #e5f0ff;
+}
+
+.admin-prof-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.admin-prof-nome {
+  font-weight: 600;
+  color: #111827;
+  font-size: 0.95rem;
+}
+
+.admin-prof-email {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.admin-prof-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.badge-turmas {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.admin-prof-toggle-icon {
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+/* Lista de turmas do professor */
+.admin-prof-turmas {
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  padding: 0.6rem 0.9rem 0.75rem;
+}
+
+.admin-prof-turmas.hidden {
+  display: none;
+}
+
+.admin-turmas-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.admin-turma-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.2rem 0;
+}
+
+.admin-turma-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-turma-nome {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+.admin-turma-descricao {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-top: 0.1rem;
+}
+
+.admin-turma-status {
+  flex-shrink: 0;
+}
+
+/* Responsivo */
+@media (max-width: 600px) {
+  .admin-turma-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-turma-status {
+    align-self: flex-end;
+  }
+}

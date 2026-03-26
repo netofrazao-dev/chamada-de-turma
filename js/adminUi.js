@@ -1,0 +1,552 @@
+import {
+  isAdmin,
+  adminListarProfessores,
+  adminListarTodasTurmas,
+  adminListarEmailsAutorizados,
+  adminAdicionarEmailAutorizado,
+  adminRemoverEmailAutorizado,
+  listarChamadasMes,
+  formatarDataBR,
+} from "./api.js";
+
+const adminState = {
+  professores: [],
+  turmas: [],
+  emails: [],
+};
+
+let adminUiConfigurado = false;
+let filtrosChamadasInicializados = false;
+
+/* ================== Init geral do Painel Admin ================== */
+
+export async function initAdminUI() {
+  const adminBtn = document.getElementById("adminPanelBtn");
+  const adminView = document.getElementById("admin-view");
+  if (!adminBtn || !adminView) return;
+
+  const usuarioEhAdmin = await isAdmin().catch(() => false);
+
+  if (!usuarioEhAdmin) {
+    // Garante que não apareça para professor
+    adminBtn.classList.add("hidden");
+    adminView.classList.add("hidden");
+    return;
+  }
+
+  // Mostrar botão para admin
+  adminBtn.classList.remove("hidden");
+
+  if (adminUiConfigurado) return;
+  adminUiConfigurado = true;
+
+  // Botão que alterna entre Minhas turmas e Painel Admin
+  adminBtn.addEventListener("click", async () => {
+    const turmasView = document.getElementById("turmas-view");
+    const turmaDetailView = document.getElementById("turma-detail-view");
+    const adminAberto = !adminView.classList.contains("hidden");
+
+    if (adminAberto) {
+      // Voltar para o painel de turmas
+      adminView.classList.add("hidden");
+      turmasView?.classList.remove("hidden");
+      turmaDetailView?.classList.add("hidden");
+      adminBtn.textContent = "Painel Admin";
+    } else {
+      // Abrir painel admin
+      adminView.classList.remove("hidden");
+      turmasView?.classList.add("hidden");
+      turmaDetailView?.classList.add("hidden");
+      adminBtn.textContent = "Minhas turmas";
+
+      ativarAbaAdmin("visao-geral");
+      await carregarVisaoGeralAdmin();
+    }
+  });
+
+  initAdminTabs();
+}
+
+/* ================== Abas do Painel Admin ================== */
+
+function initAdminTabs() {
+  const tabBtns = document.querySelectorAll(".admin-tab");
+  if (!tabBtns.length) return;
+
+  tabBtns.forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const tab = btn.dataset.adminTab;
+      ativarAbaAdmin(tab);
+
+      if (tab === "visao-geral") await carregarVisaoGeralAdmin();
+      if (tab === "chamadas") await carregarTabChamadasAdmin();
+      if (tab === "professores") await carregarTabProfessoresAdmin();
+      if (tab === "emails") await carregarTabEmailsAdmin();
+    });
+  });
+}
+
+function ativarAbaAdmin(tab) {
+  const tabBtns = document.querySelectorAll(".admin-tab");
+  const contents = {
+    "visao-geral": document.getElementById("admin-tab-visao-geral"),
+    chamadas: document.getElementById("admin-tab-chamadas"),
+    professores: document.getElementById("admin-tab-professores"),
+    emails: document.getElementById("admin-tab-emails"),
+  };
+
+  tabBtns.forEach((b) => {
+    b.classList.toggle("active", b.dataset.adminTab === tab);
+  });
+
+  Object.entries(contents).forEach(([key, el]) => {
+    if (!el) return;
+    if (key === tab) el.classList.remove("hidden");
+    else el.classList.add("hidden");
+  });
+}
+
+async function carregarDadosBaseAdmin() {
+  if (adminState.professores.length && adminState.turmas.length) return;
+
+  const [profs, turmas] = await Promise.all([
+    adminListarProfessores(),
+    adminListarTodasTurmas(),
+  ]);
+  adminState.professores = profs;
+  adminState.turmas = turmas;
+}
+
+/* ================== Aba: Visão Geral ================== */
+
+async function carregarVisaoGeralAdmin() {
+  const container = document.getElementById("adminTurmasContainer");
+  const statusEl = document.getElementById("adminVisaoGeralStatus");
+  if (!container) return;
+
+  container.innerHTML = "";
+  if (statusEl) {
+    statusEl.textContent = "";
+    statusEl.style.color = "#22c55e";
+  }
+
+  try {
+    await carregarDadosBaseAdmin();
+
+    if (!adminState.professores.length) {
+      container.innerHTML =
+        "<p class='help-text'>Nenhum professor cadastrado.</p>";
+      return;
+    }
+
+    // Ordena professores por nome
+    const professoresOrdenados = [...adminState.professores].sort((a, b) => {
+      const na = (a.nome || a.email || "").toLowerCase();
+      const nb = (b.nome || b.email || "").toLowerCase();
+      return na.localeCompare(nb, "pt-BR");
+    });
+
+    professoresOrdenados.forEach((prof) => {
+      const turmasProfessor = adminState.turmas.filter(
+        (t) => String(t.professor_id) === String(prof.id)
+      );
+
+      const grupo = document.createElement("div");
+      grupo.className = "admin-professor-group";
+
+      // Cabeçalho (accordion)
+      const header = document.createElement("button");
+      header.type = "button";
+      header.className = "admin-prof-header";
+      header.innerHTML = `
+        <div class="admin-prof-info">
+          <div class="admin-prof-nome">${prof.nome || prof.email || "Sem nome"}</div>
+          <div class="admin-prof-email">${prof.email || ""}</div>
+        </div>
+        <div class="admin-prof-meta">
+          <span class="badge-turmas">${turmasProfessor.length} turma(s)</span>
+          <span class="admin-prof-toggle-icon">▸</span>
+        </div>
+      `;
+
+      // Lista de turmas do professor
+      const listaTurmas = document.createElement("div");
+      listaTurmas.className = "admin-prof-turmas hidden";
+
+      if (!turmasProfessor.length) {
+        listaTurmas.innerHTML =
+          "<p class='help-text'>Nenhuma turma cadastrada para este professor.</p>";
+      } else {
+        const ul = document.createElement("ul");
+        ul.className = "admin-turmas-lista";
+
+        turmasProfessor.forEach((turma) => {
+          const ativa = turma.ativo === true;
+          const li = document.createElement("li");
+          li.className = "admin-turma-item";
+          li.innerHTML = `
+            <div class="admin-turma-info">
+              <div class="admin-turma-nome">${turma.nome}</div>
+              <div class="admin-turma-descricao">${turma.descricao || ""}</div>
+            </div>
+            <div class="admin-turma-status">
+              <span class="status-badge ${
+                ativa ? "status-ativo" : "status-inativo"
+              }">
+                ${ativa ? "Ativa" : "Inativa"}
+              </span>
+            </div>
+          `;
+          ul.appendChild(li);
+        });
+
+        listaTurmas.appendChild(ul);
+      }
+
+      // Toggle (expandir/recolher)
+      header.addEventListener("click", () => {
+        const isOpen = !listaTurmas.classList.contains("hidden");
+        listaTurmas.classList.toggle("hidden", isOpen);
+        header.classList.toggle("open", !isOpen);
+
+        const icon = header.querySelector(".admin-prof-toggle-icon");
+        if (icon) {
+          icon.textContent = isOpen ? "▸" : "▾";
+        }
+      });
+
+      // Opcional: começar todos recolhidos (como está)
+      // Se quiser algum aberto por padrão, remova a classe 'hidden' do primeiro
+
+      grupo.appendChild(header);
+      grupo.appendChild(listaTurmas);
+      container.appendChild(grupo);
+    });
+  } catch (err) {
+    if (statusEl) {
+      statusEl.style.color = "#e53935";
+      statusEl.textContent =
+        err.message || "Erro ao carregar visão geral. Verifique permissões.";
+    }
+  }
+}
+
+/* ================== Aba: Chamadas (Admin) ================== */
+
+async function initFiltrosChamadasAdmin() {
+  if (filtrosChamadasInicializados) return;
+
+  const profSelect = document.getElementById("adminFiltroProfessor");
+  const turmaSelect = document.getElementById("adminFiltroTurma");
+  const mesInput = document.getElementById("adminFiltroMes");
+  if (!profSelect || !turmaSelect || !mesInput) return;
+
+  // Preenche professores
+  profSelect.innerHTML = `<option value="">Todos</option>`;
+  adminState.professores.forEach((p) => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.nome || p.email;
+    profSelect.appendChild(opt);
+  });
+
+  function preencherTurmas() {
+    const profId = profSelect.value;
+    turmaSelect.innerHTML = "";
+
+    const turmasFiltradas = adminState.turmas.filter((t) =>
+      profId ? String(t.professor_id) === String(profId) : true
+    );
+
+    if (!turmasFiltradas.length) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "Nenhuma turma encontrada";
+      turmaSelect.appendChild(opt);
+      return;
+    }
+
+    turmasFiltradas.forEach((t) => {
+      const opt = document.createElement("option");
+      opt.value = t.id;
+      opt.textContent = t.nome;
+      turmaSelect.appendChild(opt);
+    });
+
+    // Seleciona primeira por padrão
+    turmaSelect.value = turmasFiltradas[0].id;
+  }
+
+  preencherTurmas();
+
+  // Mês padrão = mês atual
+  if (!mesInput.value) {
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, "0");
+    mesInput.value = `${ano}-${mes}`;
+  }
+
+  profSelect.addEventListener("change", async () => {
+    preencherTurmas();
+    await atualizarChamadasAdmin();
+  });
+
+  turmaSelect.addEventListener("change", atualizarChamadasAdmin);
+  mesInput.addEventListener("change", atualizarChamadasAdmin);
+
+  filtrosChamadasInicializados = true;
+}
+
+async function atualizarChamadasAdmin() {
+  const profSelect = document.getElementById("adminFiltroProfessor");
+  const turmaSelect = document.getElementById("adminFiltroTurma");
+  const mesInput = document.getElementById("adminFiltroMes");
+  const tbody = document.getElementById("adminChamadasTableBody");
+  const diasLista = document.getElementById("adminChamadasDiasLista");
+  const statusEl = document.getElementById("adminChamadasStatus");
+
+  if (!profSelect || !turmaSelect || !mesInput || !tbody || !diasLista)
+    return;
+
+  tbody.innerHTML = "";
+  diasLista.innerHTML = "";
+  statusEl.textContent = "";
+
+  const turmaId = turmaSelect.value;
+  const mes = mesInput.value;
+
+  if (!turmaId || !mes) {
+    statusEl.style.color = "#6b7280";
+    statusEl.textContent = "Selecione uma turma e um mês.";
+    return;
+  }
+
+  try {
+    const chamadas = await listarChamadasMes(turmaId, mes);
+    const turma = adminState.turmas.find((t) => t.id === turmaId);
+    const professor = adminState.professores.find(
+      (p) => p.id === turma?.professor_id
+    );
+
+    // Tabela de chamadas
+    if (!chamadas.length) {
+      tbody.innerHTML =
+        "<tr><td colspan='5'>Nenhuma chamada registrada neste período.</td></tr>";
+    } else {
+      chamadas.forEach((ch) => {
+        const totalRegistros = ch.chamada_presencas?.length ?? 0;
+        const presentes =
+          ch.chamada_presencas?.filter((p) => p.presente).length ?? 0;
+        const ausentes = totalRegistros - presentes;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${formatarDataBR(ch.data)}</td>
+          <td>${turma?.nome || "-"}</td>
+          <td>${professor?.nome || "-"}</td>
+          <td>${presentes}</td>
+          <td>${ausentes}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Resumo de dias com/sem chamada
+    const [anoStr, mesStr] = mes.split("-");
+    const ano = parseInt(anoStr, 10);
+    const mesIdx = parseInt(mesStr, 10) - 1;
+    const totalDiasMes = new Date(ano, mesIdx + 1, 0).getDate();
+    const datasComChamada = new Set(chamadas.map((c) => c.data));
+
+    for (let dia = 1; dia <= totalDiasMes; dia++) {
+      const dataStr = `${anoStr}-${String(mesIdx + 1).padStart(
+        2,
+        "0"
+      )}-${String(dia).padStart(2, "0")}`;
+      const li = document.createElement("li");
+      const temChamada = datasComChamada.has(dataStr);
+
+      li.className = temChamada
+        ? "dia-chamada dia-com-chamada"
+        : "dia-chamada dia-sem-chamada";
+      li.textContent = `${formatarDataBR(dataStr)} - ${
+        temChamada ? "Com chamada" : "Sem chamada"
+      }`;
+
+      diasLista.appendChild(li);
+    }
+  } catch (err) {
+    statusEl.style.color = "#e53935";
+    statusEl.textContent =
+      err.message || "Erro ao carregar chamadas. Verifique permissões.";
+  }
+}
+
+async function carregarTabChamadasAdmin() {
+  const statusEl = document.getElementById("adminChamadasStatus");
+  try {
+    await carregarDadosBaseAdmin();
+    await initFiltrosChamadasAdmin();
+    await atualizarChamadasAdmin();
+  } catch (err) {
+    statusEl.style.color = "#e53935";
+    statusEl.textContent =
+      err.message || "Erro ao carregar chamadas. Verifique permissões.";
+  }
+}
+
+/* ================== Aba: Professores ================== */
+
+async function carregarTabProfessoresAdmin() {
+  const tbody = document.getElementById("adminProfessoresTableBody");
+  const statusEl = document.getElementById("adminProfessoresStatus");
+  if (!tbody) return;
+
+  tbody.innerHTML = "";
+  statusEl.textContent = "";
+
+  try {
+    const professores = await adminListarProfessores();
+
+    if (!professores.length) {
+      tbody.innerHTML =
+        "<tr><td colspan='3'>Nenhum professor cadastrado.</td></tr>";
+      return;
+    }
+
+    professores.forEach((p) => {
+      const tr = document.createElement("tr");
+      const roleLabel =
+        p.role === "admin" ? "Admin" : p.role === "professor" ? "Professor" : p.role;
+
+      tr.innerHTML = `
+        <td>${p.nome || "-"}</td>
+        <td>${p.email || "-"}</td>
+        <td>
+          <span class="role-badge ${
+            p.role === "admin" ? "role-admin" : "role-professor"
+          }">
+            ${roleLabel || "-"}
+          </span>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (err) {
+    statusEl.style.color = "#e53935";
+    statusEl.textContent =
+      err.message || "Erro ao carregar professores. Verifique permissões.";
+  }
+}
+
+/* ================== Aba: Emails Autorizados ================== */
+
+async function carregarTabEmailsAdmin() {
+  const statusEl = document.getElementById("adminEmailStatus");
+  const form = document.getElementById("adminEmailForm");
+  if (statusEl) {
+    statusEl.textContent = "";
+    statusEl.style.color = "#22c55e";
+  }
+
+  try {
+    adminState.emails = await adminListarEmailsAutorizados();
+    renderEmailsAutorizados();
+  } catch (err) {
+    if (statusEl) {
+      statusEl.style.color = "#e53935";
+      statusEl.textContent =
+        err.message || "Erro ao carregar emails autorizados.";
+    }
+  }
+
+  if (form && !form.dataset.initialized) {
+    form.dataset.initialized = "true";
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const input = document.getElementById("adminNovoEmail");
+      if (!input) return;
+      const email = input.value.trim();
+
+      if (!email) {
+        if (statusEl) {
+          statusEl.style.color = "#e53935";
+          statusEl.textContent = "Informe um email.";
+        }
+        return;
+      }
+
+      try {
+        await adminAdicionarEmailAutorizado(email);
+        input.value = "";
+        adminState.emails = await adminListarEmailsAutorizados();
+        renderEmailsAutorizados();
+        if (statusEl) {
+          statusEl.style.color = "#22c55e";
+          statusEl.textContent = "Email autorizado adicionado com sucesso.";
+        }
+      } catch (err2) {
+        if (statusEl) {
+          statusEl.style.color = "#e53935";
+          statusEl.textContent =
+            err2.message || "Erro ao adicionar email autorizado.";
+        }
+      }
+    });
+  }
+}
+
+function renderEmailsAutorizados() {
+  const tbody = document.getElementById("adminEmailsTableBody");
+  const statusEl = document.getElementById("adminEmailStatus");
+  if (!tbody) return;
+
+  tbody.innerHTML = "";
+
+  if (!adminState.emails.length) {
+    tbody.innerHTML =
+      "<tr><td colspan='2'>Nenhum email autorizado cadastrado.</td></tr>";
+    return;
+  }
+
+  adminState.emails.forEach((item) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${item.email}</td>
+      <td class="actions-cell">
+        <button class="btn btn-outline btn-sm" data-email-id="${item.id}">
+          Remover
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll("button[data-email-id]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-email-id");
+      const email = btn.closest("tr")?.querySelector("td")?.textContent || "";
+      const confirmar = confirm(
+        `Remover o email autorizado "${email}"? Essa ação não pode ser desfeita.`
+      );
+      if (!confirmar) return;
+
+      try {
+        await adminRemoverEmailAutorizado(id);
+        adminState.emails = await adminListarEmailsAutorizados();
+        renderEmailsAutorizados();
+        if (statusEl) {
+          statusEl.style.color = "#22c55e";
+          statusEl.textContent = "Email removido com sucesso.";
+        }
+      } catch (err) {
+        if (statusEl) {
+          statusEl.style.color = "#e53935";
+          statusEl.textContent =
+            err.message || "Erro ao remover email autorizado.";
+        }
+      }
+    });
+  });
+}

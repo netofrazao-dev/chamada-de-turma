@@ -65,10 +65,11 @@
       <h1 class="app-title"><img src="imagens/logo-branca.jpeg" alt="logo branca"></h1>
       <p class="app-subtitle">Controle simples de frequência</p>
     </div>
-    <div class="app-topbar-right">
-      <span id="currentTeacherName" class="teacher-name">Professora</span>
-      <button id="logoutBtn" class="btn btn-outline">Sair</button>
-    </div>
+<div class="app-topbar-right">
+  <span id="currentTeacherName" class="teacher-name">Professora</span>
+  <button id="adminPanelBtn" class="btn btn-secondary hidden">Painel Admin</button>
+  <button id="logoutBtn" class="btn btn-outline">Sair</button>
+</div>
   </header>
 
   <main class="app-main">
@@ -238,6 +239,181 @@
         </div>
       </section>
     </section>
+      <!-- 3️⃣ PAINEL ADMIN -->
+    <section id="admin-view" class="hidden view-section">
+      <div class="card">
+        <h2>Painel Administrativo</h2>
+        <p class="help-text">
+          Gerencie turmas, chamadas, professores e emails autorizados.
+        </p>
+
+        <div class="admin-tabs">
+          <button class="admin-tab active" data-admin-tab="visao-geral">
+            Visão geral
+          </button>
+          <button class="admin-tab" data-admin-tab="chamadas">
+            Chamadas
+          </button>
+          <button class="admin-tab" data-admin-tab="professores">
+            Professores
+          </button>
+          <button class="admin-tab" data-admin-tab="emails">
+            Emails autorizados
+          </button>
+        </div>
+      </div>
+
+      <!-- 📊 VISÃO GERAL -->
+      <section id="admin-tab-visao-geral" class="admin-tab-content">
+<div class="card">
+  <div class="section-header">
+    <div>
+      <h3>Turmas por professor</h3>
+      <p class="help-text">
+        Clique no professor para expandir e ver apenas as turmas dele.
+      </p>
+    </div>
+  </div>
+
+  <!-- Container onde o JS vai montar o accordion -->
+  <div id="adminTurmasContainer" class="admin-professores-lista">
+    <!-- via JS -->
+  </div>
+
+  <p id="adminVisaoGeralStatus" class="status-message"></p>
+</div>
+      </section>
+
+      <!-- 📅 CHAMADAS -->
+      <section id="admin-tab-chamadas" class="admin-tab-content hidden">
+        <div class="card">
+          <div class="section-header">
+            <div>
+              <h3>Chamadas</h3>
+              <p class="help-text">
+                Filtre por professor, turma e mês. Veja os dias que tiveram ou não chamada.
+              </p>
+            </div>
+          </div>
+
+          <div class="admin-filters">
+            <div class="field-group">
+              <label for="adminFiltroProfessor">Professor</label>
+              <select id="adminFiltroProfessor"></select>
+            </div>
+            <div class="field-group">
+              <label for="adminFiltroTurma">Turma</label>
+              <select id="adminFiltroTurma"></select>
+            </div>
+            <div class="field-group">
+              <label for="adminFiltroMes">Mês</label>
+              <input type="month" id="adminFiltroMes" />
+            </div>
+          </div>
+
+          <div class="schedule-table-wrapper">
+            <table class="schedule-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Turma</th>
+                  <th>Professor</th>
+                  <th>Presentes</th>
+                  <th>Ausentes</th>
+                </tr>
+              </thead>
+              <tbody id="adminChamadasTableBody">
+                <!-- via JS -->
+              </tbody>
+            </table>
+          </div>
+          <p id="adminChamadasStatus" class="status-message"></p>
+        </div>
+
+        <div class="card">
+          <h3>Dias com e sem chamada</h3>
+          <p class="help-text">
+            Resumo diário do mês selecionado para a turma filtrada.
+          </p>
+          <ul id="adminChamadasDiasLista" class="dias-chamadas-lista">
+            <!-- via JS -->
+          </ul>
+        </div>
+      </section>
+
+      <!-- 👨‍🏫 PROFESSORES -->
+      <section id="admin-tab-professores" class="admin-tab-content hidden">
+        <div class="card">
+          <div class="section-header">
+            <div>
+              <h3>Professores</h3>
+              <p class="help-text">
+                Listagem de todos os professores e seus perfis.
+              </p>
+            </div>
+          </div>
+
+          <div class="schedule-table-wrapper">
+            <table class="schedule-table">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Email</th>
+                  <th>Perfil</th>
+                </tr>
+              </thead>
+              <tbody id="adminProfessoresTableBody">
+                <!-- via JS -->
+              </tbody>
+            </table>
+          </div>
+          <p id="adminProfessoresStatus" class="status-message"></p>
+        </div>
+      </section>
+
+      <!-- 🔐 EMAILS AUTORIZADOS -->
+      <section id="admin-tab-emails" class="admin-tab-content hidden">
+        <div class="card">
+          <div class="section-header">
+            <div>
+              <h3>Emails autorizados</h3>
+              <p class="help-text">
+                Controle quem pode se cadastrar no sistema.
+              </p>
+            </div>
+          </div>
+
+          <form id="adminEmailForm" class="inline-form">
+            <input
+              type="email"
+              id="adminNovoEmail"
+              placeholder="email@exemplo.com"
+              required
+            />
+            <button type="submit" class="btn btn-primary">
+              Adicionar email
+            </button>
+          </form>
+          <p id="adminEmailStatus" class="status-message"></p>
+
+          <div class="schedule-table-wrapper">
+            <table class="schedule-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="adminEmailsTableBody">
+                <!-- via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </section>
+
+
   </main>
 
   <footer class="footer">

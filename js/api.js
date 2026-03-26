@@ -229,12 +229,89 @@ export async function excluirTurma(turmaId) {
   if (error) throw error;
 }
 
+// ... tudo que já existe acima ...
+
 export async function removerAluno(alunoId) {
   // soft delete: marca inativo para não quebrar relatórios antigos
   const { error } = await supabase
     .from("alunos")
     .update({ ativo: false })
     .eq("id", alunoId);
+
+  if (error) throw error;
+}
+
+/* --------- ADMIN: detecção e recursos --------- */
+
+export async function isAdmin() {
+  try {
+    const prof = await getProfessorAtual();
+    return prof?.role === "admin";
+  } catch (e) {
+    return false;
+  }
+}
+
+/** Lista TODAS as turmas (ativas e inativas) para o admin */
+export async function adminListarTodasTurmas() {
+  const { data, error } = await supabase
+    .from("turmas")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/** Lista todos os professores com role */
+export async function adminListarProfessores() {
+  const { data, error } = await supabase
+    .from("professores")
+    .select("id, nome, email, role")
+    .order("nome", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/** Lista todos os emails autorizados */
+export async function adminListarEmailsAutorizados() {
+  const { data, error } = await supabase
+    .from("emails_autorizados")
+    .select("*")
+    .order("email", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/** Adiciona um novo email autorizado */
+export async function adminAdicionarEmailAutorizado(email) {
+  const emailLimpo = (email || "").trim().toLowerCase();
+  if (!emailLimpo) throw new Error("Informe um email.");
+
+  const { data, error } = await supabase
+    .from("emails_autorizados")
+    .insert({ email: emailLimpo })
+    .select("*")
+    .single();
+
+  if (error) {
+    // 23505 = unique violation (caso exista unique(email))
+    if (error.code === "23505") {
+      throw new Error("Este email já está autorizado.");
+    }
+    throw error;
+  }
+  return data;
+}
+
+/** Remove email autorizado pelo id */
+export async function adminRemoverEmailAutorizado(id) {
+  const { error } = await supabase
+    .from("emails_autorizados")
+    .delete()
+    .eq("id", id);
 
   if (error) throw error;
 }

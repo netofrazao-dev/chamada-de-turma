@@ -1,6 +1,17 @@
-import { signUp, signIn, signOut, onAuthChange, getCurrentUser } from "./auth.js";
-import { carregarTurmasPainel, initTurmasUI, initVoltarTurmas } from "./ui.js";
+import {
+  signUp,
+  signIn,
+  signOut,
+  onAuthChange,
+  getCurrentUser,
+} from "./auth.js";
+import {
+  carregarTurmasPainel,
+  initTurmasUI,
+  initVoltarTurmas,
+} from "./ui.js";
 import { getProfessorAtual } from "./api.js";
+import { initAdminUI } from "./adminUi.js";
 
 function setAppView(loggedIn) {
   const authView = document.getElementById("auth-view");
@@ -22,6 +33,7 @@ async function initAfterLogin() {
   initTurmasUI();
   initVoltarTurmas();
   await carregarTurmasPainel();
+  await initAdminUI(); // inicializa painel admin (se usuário for admin)
 }
 
 /* --------- Auth UI (não alterada na lógica) --------- */
@@ -108,7 +120,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       const prof = await getProfessorAtual().catch(() => null);
       const nameEl = document.getElementById("currentTeacherName");
       if (prof && nameEl) {
-        nameEl.textContent = prof.nome || user.email;
+        let nome = prof.nome || user.email;
+        if (prof.role === "admin") {
+          nome += " (Admin)";
+        }
+        nameEl.textContent = nome;
       }
       await initAfterLogin();
     } else {
@@ -123,7 +139,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const prof = await getProfessorAtual().catch(() => null);
     const nameEl = document.getElementById("currentTeacherName");
     if (prof && nameEl) {
-      nameEl.textContent = prof.nome || existingUser.email;
+      let nome = prof.nome || existingUser.email;
+      if (prof.role === "admin") {
+        nome += " (Admin)";
+      }
+      nameEl.textContent = nome;
     }
     await initAfterLogin();
   } else {
