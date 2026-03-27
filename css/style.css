@@ -2248,3 +2248,8 @@ textarea {
     align-self: flex-end;
   }
 }
+
+.turmas-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}

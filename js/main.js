@@ -5,11 +5,15 @@ import {
   onAuthChange,
   getCurrentUser,
 } from "./auth.js";
+
 import {
   carregarTurmasPainel,
   initTurmasUI,
   initVoltarTurmas,
+  setPerfilAtual,
+  carregarProfessoresComoPastas,
 } from "./ui.js";
+
 import { getProfessorAtual } from "./api.js";
 import { initAdminUI } from "./adminUi.js";
 
@@ -26,17 +30,30 @@ function setAppView(loggedIn) {
 }
 
 let appInitialized = false;
-async function initAfterLogin() {
+
+async function initAfterLogin(isAdmin) {
   if (appInitialized) return;
   appInitialized = true;
 
   initTurmasUI();
   initVoltarTurmas();
-  await carregarTurmasPainel();
-  await initAdminUI(); // inicializa painel admin (se usuário for admin)
+
+  // informa o perfil para o módulo de UI (admin x professor)
+  setPerfilAtual({ isAdmin });
+
+  if (isAdmin) {
+    // Admin: primeira tela = lista de professores (“pastas”)
+    await carregarProfessoresComoPastas();
+  } else {
+    // Professor: comportamento antigo, lista direta de turmas
+    await carregarTurmasPainel();
+  }
+
+  // painel admin continua funcionando (botão / seções extras)
+  await initAdminUI();
 }
 
-/* --------- Auth UI (não alterada na lógica) --------- */
+/* --------- Auth UI --------- */
 function initAuthUI() {
   const loginTab = document.getElementById("loginTabBtn");
   const signupTab = document.getElementById("signupTabBtn");
@@ -103,7 +120,7 @@ function initAppEvents() {
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
       await signOut();
-      appInitialized = false;
+      appInitialized = false; // permite re‑inicializar quando logar de novo
     });
   }
 }
@@ -113,12 +130,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   initAuthUI();
   initAppEvents();
 
-  // Observer de auth
+  // Observer de auth (login / logout / troca de sessão)
   onAuthChange(async (user) => {
     setAppView(!!user);
+
     if (user) {
       const prof = await getProfessorAtual().catch(() => null);
       const nameEl = document.getElementById("currentTeacherName");
+
       if (prof && nameEl) {
         let nome = prof.nome || user.email;
         if (prof.role === "admin") {
@@ -126,18 +145,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         nameEl.textContent = nome;
       }
-      await initAfterLogin();
+
+      const ehAdmin = prof?.role === "admin";
+      await initAfterLogin(ehAdmin);
     } else {
       appInitialized = false;
     }
   });
 
-  // Se já estiver logado (refresh)
+  // Se já estiver logado (refresh da página)
   const existingUser = await getCurrentUser();
   if (existingUser) {
     setAppView(true);
     const prof = await getProfessorAtual().catch(() => null);
     const nameEl = document.getElementById("currentTeacherName");
+
     if (prof && nameEl) {
       let nome = prof.nome || existingUser.email;
       if (prof.role === "admin") {
@@ -145,7 +167,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
       nameEl.textContent = nome;
     }
-    await initAfterLogin();
+
+    const ehAdmin = prof?.role === "admin";
+    await initAfterLogin(ehAdmin);
   } else {
     setAppView(false);
   }

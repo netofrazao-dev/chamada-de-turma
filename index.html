@@ -63,7 +63,7 @@
   <header class="app-topbar">
     <div class="app-topbar-left">
       <h1 class="app-title"><img src="imagens/logo-branca.jpeg" alt="logo branca"></h1>
-      <p class="app-subtitle">Controle simples de frequência</p>
+      <p class="app-subtitle">Controle de frequência</p>
     </div>
 <div class="app-topbar-right">
   <span id="currentTeacherName" class="teacher-name">Professora</span>
@@ -76,14 +76,20 @@
     <!-- 1️⃣ PAINEL DE TURMAS -->
     <section id="turmas-view">
       <div class="turmas-header">
-        <div>
-          <h2>Minhas turmas</h2>
-          <p class="help-text">Escolha uma turma ou crie uma nova para começar.</p>
-        </div>
-        <button id="novaTurmaBtn" class="btn btn-primary">
-          + Nova turma
-        </button>
-      </div>
+  <div>
+    <h2>Minhas turmas</h2>
+    <p class="help-text">Escolha uma turma ou crie uma nova para começar.</p>
+  </div>
+  <div class="turmas-header-actions">
+    <!-- Botão usado SOMENTE para admin, fica oculto por padrão -->
+    <button id="adminVoltarProfessoresBtn" class="btn btn-outline hidden">
+      ← Professores
+    </button>
+    <button id="novaTurmaBtn" class="btn btn-primary">
+      + Nova turma
+    </button>
+  </div>
+</div>
 
       <!-- Form inline para criar/editar turma -->
       <form id="turmaForm" class="turma-form hidden">

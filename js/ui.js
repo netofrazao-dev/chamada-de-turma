@@ -11,15 +11,23 @@ import {
   formatarDataBR,
   excluirTurma,
   removerAluno,
+  adminListarProfessores,
 } from "./api.js";
-  import { getCurrentUser } from "./auth.js";
+import { getCurrentUser } from "./auth.js";
 
 export const uiState = {
   turmas: [],
   turmaAtual: null,       // objeto turma
   alunosTurmaAtual: [],   // array de alunos
   presencas: new Map(),   // alunoId -> true/false
+
+  // controle de admin
+  isAdmin: false,
+  adminProfessores: [],
+  adminProfessorSelecionado: null,
 };
+  // ⬇️ controle simples de qual "tela" está ativa para evitar race condition
+let currentView = null;
 
 const nomesDiasSemana = [
   "Domingo",
@@ -44,23 +52,53 @@ function setStatus(element, msg, erro = false, timeout = 3500) {
 
 /* ================== Painel de turmas ================== */
 
-export async function carregarTurmasPainel() {
-  const turmas = await listarTurmas();
-  uiState.turmas = turmas;
+export async function carregarTurmasPainel(options = {}) {
+  const { professorId } = options;
+
+  // captura a tela onde esse carregamento começou
+  const viewId = currentView;
+
+  const todasTurmas = await listarTurmas();
+  if (currentView !== viewId) return; // usuário saiu da tela
+
+  uiState.turmas = todasTurmas;
 
   const grid = document.getElementById("turmasGrid");
   if (!grid) return;
   grid.innerHTML = "";
 
-  if (!turmas.length) {
-    grid.innerHTML = "<p class='help-text'>Nenhuma turma cadastrada ainda.</p>";
+  // Decide qual professor usar como filtro:
+  const effectiveProfessorId =
+    professorId ??
+    (uiState.isAdmin && uiState.adminProfessorSelecionado
+      ? uiState.adminProfessorSelecionado.id
+      : null);
+
+  const turmasParaRender = effectiveProfessorId
+    ? todasTurmas.filter(
+        (t) => String(t.professor_id) === String(effectiveProfessorId)
+      )
+    : todasTurmas;
+
+  if (!turmasParaRender.length) {
+    if (uiState.isAdmin && effectiveProfessorId) {
+      grid.innerHTML =
+        "<p class='help-text'>Nenhuma turma cadastrada para este professor.</p>";
+    } else {
+      grid.innerHTML =
+        "<p class='help-text'>Nenhuma turma cadastrada ainda.</p>";
+    }
     return;
   }
 
-  for (const turma of turmas) {
-    // alunos da turma para contagem
+for (const turma of turmasParaRender) {
+    if (currentView !== viewId) return; // saiu da tela durante o loop
+
     const alunos = await listarAlunos(turma.id);
+    if (currentView !== viewId) return;
+
     const horarios = await listarHorarios(turma.id);
+    if (currentView !== viewId) return;
 
     const numAlunos = alunos.length;
     const diasSemanaSet = new Set(horarios.map((h) => h.dia_semana));
@@ -87,7 +125,6 @@ export async function carregarTurmasPainel() {
       </div>
     `;
 
-    // listeners
     card.querySelector(".btn-abrir").addEventListener("click", () => {
       abrirTurma(turma.id);
     });
@@ -103,7 +140,7 @@ export async function carregarTurmasPainel() {
       if (!ok) return;
       try {
         await excluirTurma(turma.id);
-        await carregarTurmasPainel();
+        await carregarTurmasPainel(); // respeita filtro atual via uiState
       } catch (e) {
         alert(e.message || "Erro ao excluir turma.");
       }
@@ -112,6 +149,110 @@ export async function carregarTurmasPainel() {
     grid.appendChild(card);
   }
 }
+
+/* ================== Admin: professores como "pastas" ================== */
+
+// Lista professores como "pastas" para o admin
+export async function carregarProfessoresComoPastas() {
+    currentView = "admin-professores";
+    const viewId = currentView;
+
+  const grid = document.getElementById("turmasGrid");
+  const headerTitle = document.querySelector("#turmas-view h2");
+  const headerText = document.querySelector("#turmas-view .help-text");
+  const novaTurmaBtn = document.getElementById("novaTurmaBtn");
+  const adminVoltarBtn = document.getElementById("adminVoltarProfessoresBtn");
+
+  if (!grid) return;
+
+  // Ajusta textos para visão de professores
+  if (headerTitle) headerTitle.textContent = "Professores";
+  if (headerText) {
+    headerText.textContent =
+      "Selecione um professor para ver apenas as turmas dele.";
+  }
+  if (novaTurmaBtn) novaTurmaBtn.classList.add("hidden");
+  if (adminVoltarBtn) adminVoltarBtn.classList.add("hidden");
+
+  grid.innerHTML = "<p class='help-text'>Carregando professores...</p>";
+
+  try {
+    const professores = await adminListarProfessores();
+
+    // se o usuário já saiu desta tela, não renderiza mais nada
+    if (currentView !== viewId) return;
+
+    uiState.adminProfessores = professores;
+    uiState.adminProfessorSelecionado = null;
+
+    grid.innerHTML = "";
+
+    if (!professores.length) {
+      grid.innerHTML =
+        "<p class='help-text'>Nenhum professor cadastrado.</p>";
+      return;
+    }
+
+    // Ordena por nome/email
+    const ordenados = [...professores].sort((a, b) => {
+      const na = (a.nome || a.email || "").toLowerCase();
+      const nb = (b.nome || b.email || "").toLowerCase();
+      return na.localeCompare(nb, "pt-BR");
+    });
+
+    ordenados.forEach((prof) => {
+      const card = document.createElement("div");
+      card.className = "turma-card professor-card";
+      card.innerHTML = `
+        <div class="turma-card-title">${prof.nome || prof.email}</div>
+        <div class="turma-card-meta">${prof.email || ""}</div>
+        <div class="turma-card-dias">
+          Clique para ver as turmas deste professor.
+        </div>
+      `;
+      card.addEventListener("click", async () => {
+        uiState.adminProfessorSelecionado = prof;
+        await carregarTurmasDoProfessor(prof);
+      });
+      grid.appendChild(card);
+    });
+  } catch (err) {
+    grid.innerHTML = `<p class="status-message" style="color:#e53935;">
+      ${err.message || "Erro ao carregar professores (verifique permissões)."}
+    </p>`;
+  }
+}
+
+async function carregarTurmasDoProfessor(prof) {
+    currentView = `admin-turmas-prof-${prof.id}`;
+  const headerTitle = document.querySelector("#turmas-view h2");
+  const headerText = document.querySelector("#turmas-view .help-text");
+  const novaTurmaBtn = document.getElementById("novaTurmaBtn");
+  const adminVoltarBtn = document.getElementById("adminVoltarProfessoresBtn");
+
+  if (headerTitle) {
+    headerTitle.textContent = `Turmas de ${prof.nome || prof.email}`;
+  }
+  if (headerText) {
+    headerText.textContent =
+      "Escolha uma turma para gerenciar alunos, chamadas e relatórios.";
+  }
+
+  // Admin não cria turmas em nome do professor diretamente aqui
+  if (novaTurmaBtn) novaTurmaBtn.classList.add("hidden");
+  if (adminVoltarBtn) adminVoltarBtn.classList.remove("hidden");
+
+  await carregarTurmasPainel({ professorId: prof.id });
+}
+
+// Voltar da visão de turmas de um professor para a lista de professores
+export async function voltarParaProfessoresAdmin() {
+  uiState.adminProfessorSelecionado = null;
+    currentView = "admin-professores";
+  await carregarProfessoresComoPastas();
+}
+
+/* ================== Form de turma ================== */
 
 let turmaFormInicializado = false;
 
@@ -125,6 +266,17 @@ export function initTurmasUI() {
 
   if (turmaFormInicializado) return;
   turmaFormInicializado = true;
+
+  // botão "voltar para professores" (modo admin)
+  const adminVoltarBtn = document.getElementById("adminVoltarProfessoresBtn");
+  if (adminVoltarBtn && !adminVoltarBtn.dataset.inicializado) {
+    adminVoltarBtn.dataset.inicializado = "true";
+    adminVoltarBtn.addEventListener("click", async () => {
+      if (uiState.isAdmin) {
+        await voltarParaProfessoresAdmin();
+      }
+    });
+  }
 
   function mostrarForm(nova = true, turma = null) {
     turmaForm.classList.remove("hidden");
@@ -161,7 +313,9 @@ export function initTurmasUI() {
       e.preventDefault();
       turmaFormStatus.textContent = "";
       const nome = turmaFormNome.value.trim();
-      const desc = document.getElementById("turmaFormDescricao").value.trim();
+      const desc = document
+        .getElementById("turmaFormDescricao")
+        .value.trim();
       if (!nome) return;
 
       turmaForm
@@ -177,7 +331,6 @@ export function initTurmasUI() {
             turma.nome = nome;
             turma.descricao = desc;
           }
-          // update no banco
           const { supabase } = await import("./supabaseClient.js");
           const { error } = await supabase
             .from("turmas")
@@ -229,11 +382,11 @@ async function abrirTurma(turmaId) {
   if (!turma) return;
   uiState.turmaAtual = turma;
 
-  // carrega alunos
+    currentView = `turma-detalhe-${turma.id}`;
+
   uiState.alunosTurmaAtual = await listarAlunos(turmaId);
   uiState.presencas = new Map();
 
-  // header
   document.getElementById("turmaDetailNome").textContent = turma.nome;
   document.getElementById("turmaDetailInfo").textContent =
     (turma.descricao || "") +
@@ -241,11 +394,11 @@ async function abrirTurma(turmaId) {
       ? ` • ${uiState.alunosTurmaAtual.length} aluno(s)`
       : "");
 
-  // mostra view de detalhe
   document.getElementById("turmas-view").classList.add("hidden");
-  document.getElementById("turma-detail-view").classList.remove("hidden");
+  document
+    .getElementById("turma-detail-view")
+    .classList.remove("hidden");
 
-  // abas
   initTurmaTabs();
   await renderTabAlunos();
 }
@@ -254,8 +407,16 @@ export function initVoltarTurmas() {
   const btn = document.getElementById("voltarTurmasBtn");
   if (!btn) return;
   btn.addEventListener("click", () => {
+    // voltando para lista de turmas
+    currentView =
+      uiState.isAdmin && uiState.adminProfessorSelecionado
+        ? `admin-turmas-prof-${uiState.adminProfessorSelecionado.id}`
+        : "turmas-lista";
+
     document.getElementById("turmas-view").classList.remove("hidden");
-    document.getElementById("turma-detail-view").classList.add("hidden");
+    document
+      .getElementById("turma-detail-view")
+      .classList.add("hidden");
     uiState.turmaAtual = null;
     uiState.alunosTurmaAtual = [];
     uiState.presencas = new Map();
@@ -287,14 +448,17 @@ function initTurmaTabs() {
 
 /* ================== Tab ALUNOS ================== */
 
-// VARIÁVEL GLOBAL PARA CONTROLAR SE O FORMULÁRIO JÁ FOI INICIALIZADO
 let novoAlunoFormInicializado = false;
 
 async function renderTabAlunos() {
+  const viewId = currentView;
+
   const lista = document.getElementById("listaAlunosTurma");
   if (!lista || !uiState.turmaAtual) return;
 
   uiState.alunosTurmaAtual = await listarAlunos(uiState.turmaAtual.id);
+  if (currentView !== viewId) return;
+
   lista.innerHTML = "";
 
   if (!uiState.alunosTurmaAtual.length) {
@@ -328,38 +492,36 @@ async function renderTabAlunos() {
     });
   }
 
-  // INICIALIZAR FORMULÁRIO DE ADICIONAR ALUNO UMA VEZ
+  // inicializar form de novo aluno uma vez
   if (!novoAlunoFormInicializado) {
     novoAlunoFormInicializado = true;
     const form = document.getElementById("novoAlunoForm");
-    
+
     if (form) {
-      // REMOVER LISTENERS ANTIGOS (se houver)
       const newForm = form.cloneNode(true);
       form.parentNode.replaceChild(newForm, form);
-      
-      // ADICIONAR NOVO LISTENER
+
       const novoForm = document.getElementById("novoAlunoForm");
       novoForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-        
+
         if (!uiState.turmaAtual) {
           alert("Nenhuma turma selecionada.");
           return;
         }
-        
+
         const input = document.getElementById("novoAlunoNome");
         if (!input) {
           alert("Campo de entrada não encontrado.");
           return;
         }
-        
+
         const nome = input.value.trim();
         if (!nome) {
           alert("Digite o nome do aluno.");
           return;
         }
-        
+
         try {
           await criarAluno(uiState.turmaAtual.id, nome);
           input.value = "";
@@ -375,6 +537,8 @@ async function renderTabAlunos() {
 /* ================== Tab CHAMADA ================== */
 
 async function renderTabChamada() {
+  const viewId = currentView;
+
   const lista = document.getElementById("listaAlunosChamada");
   const dataInput = document.getElementById("dataChamada");
   const salvarBtn = document.getElementById("salvarChamadaBtn");
@@ -382,13 +546,14 @@ async function renderTabChamada() {
 
   if (!lista || !uiState.turmaAtual) return;
 
-  // data padrão: hoje
   if (dataInput && !dataInput.value) {
     const hoje = new Date();
     dataInput.value = hoje.toISOString().split("T")[0];
   }
 
   uiState.alunosTurmaAtual = await listarAlunos(uiState.turmaAtual.id);
+  if (currentView !== viewId) return;
+
   lista.innerHTML = "";
 
   if (!uiState.alunosTurmaAtual.length) {
@@ -432,7 +597,6 @@ async function renderTabChamada() {
     lista.appendChild(row);
   });
 
-  // carregar chamada existente para a data
   if (dataInput) {
     await carregarChamadaParaData(dataInput.value);
     dataInput.onchange = async (e) => {
@@ -459,15 +623,22 @@ async function renderTabChamada() {
         );
         setStatus(statusEl, "Chamada salva com sucesso.");
       } catch (err) {
-        setStatus(statusEl, err.message || "Erro ao salvar chamada.", true);
+        setStatus(
+          statusEl,
+          err.message || "Erro ao salvar chamada.",
+          true
+        );
       }
     });
   }
 }
 
 async function carregarChamadaParaData(dataStr) {
+  const viewId = currentView;
   if (!uiState.turmaAtual || !dataStr) return;
+
   const chamada = await obterChamadaPorData(uiState.turmaAtual.id, dataStr);
+  if (currentView !== viewId) return;
 
   uiState.presencas = new Map();
   const rows = document.querySelectorAll(".chamada-row");
@@ -478,12 +649,11 @@ async function carregarChamadaParaData(dataStr) {
     btnP.classList.remove("selected");
     btnA.classList.remove("selected");
 
-    if (!chamada) {
-      // nenhum registro: deixa ambos desmarcados
-      return;
-    }
+    if (!chamada) return;
 
-    const reg = chamada.chamada_presencas?.find((p) => p.aluno_id === alunoId);
+    const reg = chamada.chamada_presencas?.find(
+      (p) => p.aluno_id === alunoId
+    );
     if (!reg) return;
 
     uiState.presencas.set(alunoId, !!reg.presente);
@@ -495,10 +665,12 @@ async function carregarChamadaParaData(dataStr) {
   });
 }
 
-/* ================== Tab RELATÓRIOS ================== */
+/* ================== Tab RELATÓRIOS (versão atual, sem correção de faltas) ================== */
 
 async function renderTabRelatorios() {
   if (!uiState.turmaAtual) return;
+
+  const viewId = currentView;
 
   const mesInput = document.getElementById("mesRelatorio");
   const tbody = document.getElementById("relatorioMensalBody");
@@ -513,6 +685,7 @@ async function renderTabRelatorios() {
   async function atualizarTudo() {
     if (!mesInput.value) return;
     await atualizarTabelaRelatorio(mesInput.value);
+    if (currentView !== viewId) return;
     await renderCalendario(mesInput.value);
   }
 
@@ -532,14 +705,18 @@ async function renderTabRelatorios() {
 }
 
 async function atualizarTabelaRelatorio(mes) {
+  const viewId = currentView;
+
   const tbody = document.getElementById("relatorioMensalBody");
   if (!tbody || !uiState.turmaAtual) return;
   tbody.innerHTML = "";
 
   const turmaId = uiState.turmaAtual.id;
   const alunos = await listarAlunos(turmaId);
+  if (currentView !== viewId) return;
+
   const chamadas = await listarChamadasMes(turmaId, mes);
-  const totalDias = chamadas.length;
+  if (currentView !== viewId) return;
 
   if (!alunos.length) {
     const tr = document.createElement("tr");
@@ -549,34 +726,62 @@ async function atualizarTabelaRelatorio(mes) {
   }
 
   alunos.forEach((aluno) => {
+    // data de criação do aluno (YYYY-MM-DD)
+    const createdDate =
+      (aluno.created_at && aluno.created_at.slice(0, 10)) || null;
+
+    const chamadasValidas = createdDate
+      ? chamadas.filter((ch) => ch.data >= createdDate)
+      : chamadas;
+
+    const totalDiasValidos = chamadasValidas.length;
+
+    if (!totalDiasValidos) {
+      // Nenhuma chamada onde esse aluno "existe" -> N/A
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${aluno.nome}</td>
+        <td>–</td>
+        <td>–</td>
+        <td>–</td>
+        <td>–</td>
+      `;
+      tbody.appendChild(tr);
+      return;
+    }
+
     let presencas = 0;
-    chamadas.forEach((ch) => {
-      const reg = ch.chamada_presencas?.find((p) => p.aluno_id === aluno.id);
+
+    chamadasValidas.forEach((ch) => {
+      const reg = ch.chamada_presencas?.find(
+        (p) => p.aluno_id === aluno.id
+      );
       if (reg?.presente) presencas++;
+      // se não houver registro para este aluno nessa chamada válida,
+      // consideramos como falta (pois o aluno já existia na data)
     });
 
-    const faltas = totalDias - presencas;
-    const perc = totalDias > 0 ? ((presencas / totalDias) * 100).toFixed(1) : "0.0";
+    const faltas = totalDiasValidos - presencas;
+    const perc =
+      totalDiasValidos > 0
+        ? ((presencas / totalDiasValidos) * 100).toFixed(1)
+        : "0.0";
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${aluno.nome}</td>
       <td>${presencas}</td>
       <td>${faltas}</td>
-      <td>${totalDias}</td>
+      <td>${totalDiasValidos}</td>
       <td>${perc}%</td>
     `;
     tbody.appendChild(tr);
   });
-
-  if (!totalDias) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="5">Nenhuma chamada registrada neste mês.</td>`;
-    tbody.appendChild(tr);
-  }
 }
 
 async function renderCalendario(mes) {
+  const viewId = currentView;
+
   const container = document.getElementById("calendarioContainer");
   if (!container || !uiState.turmaAtual) return;
 
@@ -589,29 +794,27 @@ async function renderCalendario(mes) {
   const diaSemanaPrimeiro = primeiroDia.getDay();
   const totalDiasMes = new Date(ano, mesIndex + 1, 0).getDate();
 
-  // Buscar TODAS as chamadas do mês, independentemente dos horários
+
+
+
+  
   const chamadas = await listarChamadasMes(turmaId, mes);
+  if (currentView !== viewId) return;
+
   const mapaChamadas = new Map();
   chamadas.forEach((c) => mapaChamadas.set(c.data, c));
 
   const alunos = await listarAlunos(turmaId);
-  const totalAlunos = alunos.length;
+  if (currentView !== viewId) return;
 
   const hoje = new Date();
-  const dataHoje = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+  const dataHoje = `${hoje.getFullYear()}-${String(
+    hoje.getMonth() + 1
+  ).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
 
-  // Nomes dos meses
-  const nomesMeses = [
-    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-  ];
-  const nomeMes = nomesMeses[mesIndex];
-
-  // Criar grid de dias
   const diasGrid = document.createElement("div");
   diasGrid.className = "calendar-grid-novo";
 
-  // Cabeçalho com dias da semana
   const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
   diasSemana.forEach((dia) => {
     const header = document.createElement("div");
@@ -620,40 +823,44 @@ async function renderCalendario(mes) {
     diasGrid.appendChild(header);
   });
 
-  // Dias vazios antes do primeiro dia do mês
+  // Espaços vazios antes do primeiro dia
   for (let i = 0; i < diaSemanaPrimeiro; i++) {
     const empty = document.createElement("div");
     empty.className = "calendar-day-empty";
     diasGrid.appendChild(empty);
   }
 
-  // Dias do mês
   for (let diaAtual = 1; diaAtual <= totalDiasMes; diaAtual++) {
-    const dataStr = `${ano}-${String(mesIndex + 1).padStart(2, "0")}-${String(diaAtual).padStart(2, "0")}`;
+    const dataStr = `${ano}-${String(mesIndex + 1).padStart(2, "0")}-${String(
+      diaAtual
+    ).padStart(2, "0")}`;
     const isHoje = dataStr === dataHoje;
 
     const dayDiv = document.createElement("div");
     dayDiv.className = "calendar-day-novo";
-
     if (isHoje) dayDiv.classList.add("calendar-today");
 
-    // Verificar se há chamada registrada para este dia
     const registro = mapaChamadas.get(dataStr);
-    
+
     if (registro) {
-      // DIA COM CHAMADA REGISTRADA
+      // Só conta alunos que já "existiam" nessa data
+      const alunosNoDia = alunos.filter((aluno) => {
+        const createdDate =
+          (aluno.created_at && aluno.created_at.slice(0, 10)) || "0000-00-00";
+        return createdDate <= dataStr;
+      });
+      const totalAlunosDia = alunosNoDia.length;
+
+      const totalReg = registro.chamada_presencas?.length ?? 0;
+      const presentes =
+        registro.chamada_presencas?.filter((p) => p.presente).length ?? 0;
+      const ausentes = totalReg - presentes;
+
       let statusClass = "calendar-no-call";
       let statusIcon = "⚠️";
       let statusTitle = "Sem chamada";
-      let temChamada = true;
-      let presentes = 0;
-      let ausentes = 0;
 
-      const totalReg = registro.chamada_presencas?.length ?? 0;
-      presentes = registro.chamada_presencas?.filter(p => p.presente).length ?? 0;
-      ausentes = totalReg - presentes;
-
-      if (totalReg >= totalAlunos && totalAlunos > 0) {
+      if (totalAlunosDia > 0 && totalReg >= totalAlunosDia) {
         statusClass = "calendar-complete";
         statusIcon = "✓";
         statusTitle = "Chamada completa";
@@ -661,35 +868,35 @@ async function renderCalendario(mes) {
         statusClass = "calendar-partial";
         statusIcon = "◐";
         statusTitle = "Chamada parcial";
-      } else {
-        statusClass = "calendar-no-call";
-        statusIcon = "⚠️";
-        statusTitle = "Sem chamada";
       }
 
       dayDiv.classList.add(statusClass);
       dayDiv.dataset.data = dataStr;
       dayDiv.dataset.presentes = presentes;
       dayDiv.dataset.ausentes = ausentes;
-      dayDiv.dataset.total = totalAlunos;
-      dayDiv.dataset.temChamada = temChamada;
+      dayDiv.dataset.total = totalAlunosDia;
+      dayDiv.dataset.temChamada = "true";
       dayDiv.title = statusTitle;
 
-      // Renderizar com indicador visual
       dayDiv.innerHTML = `
         <div class="calendar-day-number-novo">${diaAtual}</div>
         <div class="calendar-day-status">${statusIcon}</div>
         <div class="calendar-has-call-indicator"></div>
       `;
 
-      // Clique para ver detalhes
       dayDiv.addEventListener("click", () => {
-        mostrarDetalhesCalendario(dataStr, presentes, ausentes, totalAlunos, statusTitle, mes);
+        mostrarDetalhesCalendario(
+          dataStr,
+          presentes,
+          ausentes,
+          totalAlunosDia,
+          statusTitle,
+          mes
+        );
       });
 
       dayDiv.style.cursor = "pointer";
     } else {
-      // DIA SEM CHAMADA REGISTRADA - mostrar em cinza
       dayDiv.classList.add("calendar-no-class");
       dayDiv.innerHTML = `<div class="calendar-day-number-novo">${diaAtual}</div>`;
       dayDiv.title = "Sem chamada registrada";
@@ -698,7 +905,7 @@ async function renderCalendario(mes) {
     diasGrid.appendChild(dayDiv);
   }
 
-  // Renderizar legenda
+  // Legenda permanece a mesma
   const legenda = document.createElement("div");
   legenda.className = "calendar-legend-novo";
   legenda.innerHTML = `
@@ -723,25 +930,34 @@ async function renderCalendario(mes) {
     </div>
   `;
 
-  // Limpar e renderizar
   container.innerHTML = "";
   container.appendChild(diasGrid);
   container.appendChild(legenda);
 }
 
-async function mostrarDetalhesCalendario(data, presentes, ausentes, total, status, mesAtual) {
+async function mostrarDetalhesCalendario(
+  data,
+  presentes,
+  ausentes,
+  total,
+  status,
+  mesAtual
+) {
   const modal = document.getElementById("calendarDetailModal");
   if (!modal) return;
 
-  const percentual = total > 0 ? ((presentes / total) * 100).toFixed(1) : "0.0";
-  const dataFormatada = new Date(data + "T00:00:00").toLocaleDateString("pt-BR", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  });
+  const percentual =
+    total > 0 ? ((presentes / total) * 100).toFixed(1) : "0.0";
+  const dataFormatada = new Date(data + "T00:00:00").toLocaleDateString(
+    "pt-BR",
+    {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }
+  );
 
-  // Verificar se existe chamada para esta data
   const chamada = await obterChamadaPorData(uiState.turmaAtual.id, data);
   const temChamada = !!chamada;
 
@@ -775,25 +991,27 @@ async function mostrarDetalhesCalendario(data, presentes, ausentes, total, statu
         <div class="detail-progress">
           <div class="progress-bar" style="width: ${percentual}%"></div>
         </div>
-        ${temChamada ? `
+        ${
+          temChamada
+            ? `
           <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
             <button id="btnRemoverChamada" class="btn btn-outline" style="width: 100%; color: #b91c1c; border-color: #fecaca;">
               🗑️ Remover Chamada
             </button>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
       </div>
     </div>
   `;
 
   modal.classList.remove("hidden");
 
-  // Fechar ao clicar fora
   modal.addEventListener("click", (e) => {
     if (e.target === modal) modal.classList.add("hidden");
   });
 
-  // Adicionar listener para remover chamada se ela existir
   if (temChamada) {
     const btnRemover = document.getElementById("btnRemoverChamada");
     if (btnRemover) {
@@ -806,11 +1024,7 @@ async function mostrarDetalhesCalendario(data, presentes, ausentes, total, statu
         try {
           await removerChamada(uiState.turmaAtual.id, data);
           modal.classList.add("hidden");
-          
-          // Recarregar o calendário para refletir a mudança
           await renderCalendario(mesAtual);
-          
-          // Mostrar mensagem de sucesso
           alert("Chamada removida com sucesso!");
         } catch (err) {
           alert(err.message || "Erro ao remover chamada.");
@@ -829,7 +1043,7 @@ async function exportarPdfRelatorio() {
   if (!mes) return;
 
   const user = await getCurrentUser();
-const nomeProfessor = user?.user_metadata?.nome || "Professor";
+  const nomeProfessor = user?.user_metadata?.nome || "Professor";
 
   const [anoStr, mesNumStr] = mes.split("-");
   const ano = parseInt(anoStr, 10);
@@ -840,15 +1054,26 @@ const nomeProfessor = user?.user_metadata?.nome || "Professor";
   const chamadasDoMes = await listarChamadasMes(turma.id, mes);
 
   const totalDiasMes = new Date(ano, mesIndex + 1, 0).getDate();
-  const nomesDiasSemanaCurto = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+  const nomesDiasSemanaCurto = [
+    "Dom",
+    "Seg",
+    "Ter",
+    "Qua",
+    "Qui",
+    "Sex",
+    "Sab",
+  ];
 
-  let detalhesDiariosHtml = '';
+  let detalhesDiariosHtml = "";
   for (let diaAtual = 1; diaAtual <= totalDiasMes; diaAtual++) {
-    const dataStr = `${anoStr}-${String(mesIndex + 1).padStart(2, "0")}-${String(diaAtual).padStart(2, "0")}`;
+    const dataStr = `${anoStr}-${String(mesIndex + 1).padStart(
+      2,
+      "0"
+    )}-${String(diaAtual).padStart(2, "0")}`;
     const dataObj = new Date(ano, mesIndex, diaAtual);
     const diaSemanaNome = nomesDiasSemanaCurto[dataObj.getDay()];
 
-    const chamadaDoDia = chamadasDoMes.find(c => c.data === dataStr);
+    const chamadaDoDia = chamadasDoMes.find((c) => c.data === dataStr);
 
     if (chamadaDoDia) {
       detalhesDiariosHtml += `
@@ -856,16 +1081,31 @@ const nomeProfessor = user?.user_metadata?.nome || "Professor";
           <h3>Dia ${diaAtual} (${diaSemanaNome})</h3>
           <ul>
       `;
-      alunos.forEach(aluno => {
-        const presenca = chamadaDoDia.chamada_presencas.find(p => p.aluno_id === aluno.id);
-        const status = presenca?.presente ? 'Presente' : 'Ausente';
-        detalhesDiariosHtml += `<li>Aluno ${aluno.nome}: ${status}</li>`;
-      });
+alunos.forEach((aluno) => {
+  const createdDate =
+    (aluno.created_at && aluno.created_at.slice(0, 10)) || null;
+
+  let status = "N/A";
+
+  if (!createdDate || dataStr >= createdDate) {
+    const presenca = chamadaDoDia.chamada_presencas.find(
+      (p) => p.aluno_id === aluno.id
+    );
+    if (!presenca) {
+      status = "N/A";
+    } else {
+      status = presenca.presente ? "Presente" : "Ausente";
+    }
+  }
+
+  detalhesDiariosHtml += `<li>Aluno ${aluno.nome}: ${status}</li>`;
+});
       detalhesDiariosHtml += `</ul></div>`;
     }
   }
 
-  const tbodyHtml = document.getElementById("relatorioMensalBody")?.innerHTML ?? "";
+  const tbodyHtml =
+    document.getElementById("relatorioMensalBody")?.innerHTML ?? "";
 
   const win = window.open("", "_blank");
   if (!win) return;
@@ -936,4 +1176,10 @@ const nomeProfessor = user?.user_metadata?.nome || "Professor";
 </body>
 </html>`);
   win.document.close();
+}
+
+/* ================== Perfil atual (admin x professor) ================== */
+
+export function setPerfilAtual({ isAdmin }) {
+  uiState.isAdmin = !!isAdmin;
 }
