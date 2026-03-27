@@ -147,17 +147,35 @@
           <p class="help-text">
             Adicione alunos rapidamente. Pressione Enter para adicionar.
           </p>
-          <form id="novoAlunoForm" class="inline-form">
-            <input
-              type="text"
-              id="novoAlunoNome"
-              placeholder="Nome do aluno"
-              required
-            />
-            <button type="submit" class="btn btn-secondary">
-              Adicionar
-            </button>
-          </form>
+<form id="novoAlunoForm" class="inline-form">
+  <div class="field-group">
+    <label for="novoAlunoNome">Nome do aluno</label>
+    <input
+      type="text"
+      id="novoAlunoNome"
+      placeholder="Nome do aluno"
+      required
+    />
+  </div>
+
+  <div class="field-group">
+    <label for="novoAlunoDataEntrada">Data de entrada do aluno na turma</label>
+    <input
+      type="date"
+      id="novoAlunoDataEntrada"
+      required
+      title="Essa data define a partir de quando o aluno começa a contar presença (antes disso ele não conta falta)."
+    />
+    <span class="help-text">
+      Essa data define a partir de quando o aluno começa a contar presença.
+      Antes disso, ele não entra no cálculo de faltas.
+    </span>
+  </div>
+
+  <button type="submit" class="btn btn-secondary">
+    Adicionar
+  </button>
+</form>
           <ul id="listaAlunosTurma" class="simple-list">
             <!-- alunos via JS -->
           </ul>

@@ -102,10 +102,33 @@ export async function listarAlunos(turmaId) {
   return data || [];
 }
 
-export async function criarAluno(turmaId, nome) {
+export async function criarAluno(turmaId, nome, dataEntrada) {
+  const payload = {
+    turma_id: turmaId,
+    nome,
+    // usar sempre data_entrada como referência de início na turma
+    data_entrada: dataEntrada || null,
+  };
+
   const { data, error } = await supabase
     .from("alunos")
-    .insert({ turma_id: turmaId, nome })
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// atualizar apenas o nome do aluno
+export async function atualizarAlunoNome(alunoId, novoNome) {
+  const nomeLimpo = (novoNome || "").trim();
+  if (!nomeLimpo) throw new Error("Informe um nome válido.");
+
+  const { data, error } = await supabase
+    .from("alunos")
+    .update({ nome: nomeLimpo })
+    .eq("id", alunoId)
     .select("*")
     .single();
 
@@ -220,6 +243,7 @@ export async function listarChamadasMes(turmaId, mesStr) {
   if (error) throw error;
   return data || [];
 }
+
 export async function excluirTurma(turmaId) {
   const { error } = await supabase
     .from("turmas")

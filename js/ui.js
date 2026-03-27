@@ -12,21 +12,23 @@ import {
   excluirTurma,
   removerAluno,
   adminListarProfessores,
+  atualizarAlunoNome,
 } from "./api.js";
 import { getCurrentUser } from "./auth.js";
 
 export const uiState = {
   turmas: [],
-  turmaAtual: null,       // objeto turma
-  alunosTurmaAtual: [],   // array de alunos
-  presencas: new Map(),   // alunoId -> true/false
+  turmaAtual: null, // objeto turma
+  alunosTurmaAtual: [], // array de alunos
+  presencas: new Map(), // alunoId -> true/false
 
   // controle de admin
   isAdmin: false,
   adminProfessores: [],
   adminProfessorSelecionado: null,
 };
-  // ⬇️ controle simples de qual "tela" está ativa para evitar race condition
+
+// ⬇️ controle simples de qual "tela" está ativa para evitar race condition
 let currentView = null;
 
 const nomesDiasSemana = [
@@ -91,7 +93,7 @@ export async function carregarTurmasPainel(options = {}) {
     return;
   }
 
-for (const turma of turmasParaRender) {
+  for (const turma of turmasParaRender) {
     if (currentView !== viewId) return; // saiu da tela durante o loop
 
     const alunos = await listarAlunos(turma.id);
@@ -154,8 +156,8 @@ for (const turma of turmasParaRender) {
 
 // Lista professores como "pastas" para o admin
 export async function carregarProfessoresComoPastas() {
-    currentView = "admin-professores";
-    const viewId = currentView;
+  currentView = "admin-professores";
+  const viewId = currentView;
 
   const grid = document.getElementById("turmasGrid");
   const headerTitle = document.querySelector("#turmas-view h2");
@@ -224,7 +226,7 @@ export async function carregarProfessoresComoPastas() {
 }
 
 async function carregarTurmasDoProfessor(prof) {
-    currentView = `admin-turmas-prof-${prof.id}`;
+  currentView = `admin-turmas-prof-${prof.id}`;
   const headerTitle = document.querySelector("#turmas-view h2");
   const headerText = document.querySelector("#turmas-view .help-text");
   const novaTurmaBtn = document.getElementById("novaTurmaBtn");
@@ -248,7 +250,7 @@ async function carregarTurmasDoProfessor(prof) {
 // Voltar da visão de turmas de um professor para a lista de professores
 export async function voltarParaProfessoresAdmin() {
   uiState.adminProfessorSelecionado = null;
-    currentView = "admin-professores";
+  currentView = "admin-professores";
   await carregarProfessoresComoPastas();
 }
 
@@ -259,7 +261,9 @@ let turmaFormInicializado = false;
 export function initTurmasUI() {
   const novaTurmaBtn = document.getElementById("novaTurmaBtn");
   const turmaForm = document.getElementById("turmaForm");
-  const cancelarTurmaFormBtn = document.getElementById("cancelarTurmaFormBtn");
+  const cancelarTurmaFormBtn = document.getElementById(
+    "cancelarTurmaFormBtn"
+  );
   const turmaFormNome = document.getElementById("turmaFormNome");
   const turmaFormId = document.getElementById("turmaFormId");
   const turmaFormStatus = document.getElementById("turmaFormStatus");
@@ -382,7 +386,7 @@ async function abrirTurma(turmaId) {
   if (!turma) return;
   uiState.turmaAtual = turma;
 
-    currentView = `turma-detalhe-${turma.id}`;
+  currentView = `turma-detalhe-${turma.id}`;
 
   uiState.alunosTurmaAtual = await listarAlunos(turmaId);
   uiState.presencas = new Map();
@@ -468,17 +472,25 @@ async function renderTabAlunos() {
       const li = document.createElement("li");
       li.innerHTML = `
         <span>${aluno.nome}</span>
-        <button class="btn btn-outline btn-remover-aluno" data-aluno-id="${aluno.id}">
-          Remover
-        </button>
+        <div style="display:flex; gap:0.4rem;">
+          <button class="btn btn-outline btn-editar-aluno" data-aluno-id="${aluno.id}">
+            Editar
+          </button>
+          <button class="btn btn-outline btn-remover-aluno" data-aluno-id="${aluno.id}">
+            Remover
+          </button>
+        </div>
       `;
       lista.appendChild(li);
     });
 
+    // Remover aluno
     lista.querySelectorAll(".btn-remover-aluno").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const alunoId = btn.dataset.alunoId;
-        const aluno = uiState.alunosTurmaAtual.find((a) => a.id === alunoId);
+        const aluno = uiState.alunosTurmaAtual.find(
+          (a) => String(a.id) === String(alunoId)
+        );
         if (!aluno) return;
         const ok = confirm(`Remover aluno "${aluno.nome}" da turma?`);
         if (!ok) return;
@@ -490,6 +502,33 @@ async function renderTabAlunos() {
         }
       });
     });
+
+    // Editar nome do aluno
+    lista.querySelectorAll(".btn-editar-aluno").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const alunoId = btn.dataset.alunoId;
+        const aluno = uiState.alunosTurmaAtual.find(
+          (a) => String(a.id) === String(alunoId)
+        );
+        if (!aluno) return;
+
+        const novoNome = prompt("Editar nome do aluno:", aluno.nome);
+        if (novoNome === null) return; // cancelou
+        const nomeLimpo = novoNome.trim();
+        if (!nomeLimpo) {
+          alert("O nome não pode ser vazio.");
+          return;
+        }
+
+        try {
+          await atualizarAlunoNome(alunoId, nomeLimpo);
+          alert("Nome atualizado com sucesso.");
+          await renderTabAlunos();
+        } catch (e) {
+          alert(e.message || "Erro ao atualizar nome do aluno.");
+        }
+      });
+    });
   }
 
   // inicializar form de novo aluno uma vez
@@ -498,10 +537,19 @@ async function renderTabAlunos() {
     const form = document.getElementById("novoAlunoForm");
 
     if (form) {
+      // evita múltiplos listeners
       const newForm = form.cloneNode(true);
       form.parentNode.replaceChild(newForm, form);
 
       const novoForm = document.getElementById("novoAlunoForm");
+      const inputNome = document.getElementById("novoAlunoNome");
+      const inputDataEntrada = document.getElementById("novoAlunoDataEntrada");
+
+      // valor padrão da data de entrada = hoje
+      if (inputDataEntrada && !inputDataEntrada.value) {
+        inputDataEntrada.value = new Date().toISOString().slice(0, 10);
+      }
+
       novoForm.addEventListener("submit", async (e) => {
         e.preventDefault();
 
@@ -510,26 +558,38 @@ async function renderTabAlunos() {
           return;
         }
 
-        const input = document.getElementById("novoAlunoNome");
-        if (!input) {
-          alert("Campo de entrada não encontrado.");
+        if (!inputNome || !inputDataEntrada) {
+          alert("Campos do formulário não encontrados.");
           return;
         }
 
-        const nome = input.value.trim();
+        const nome = inputNome.value.trim();
+        const dataEntrada = inputDataEntrada.value;
+
         if (!nome) {
           alert("Digite o nome do aluno.");
           return;
         }
+        if (!dataEntrada) {
+          alert("Informe a data de entrada na turma.");
+          return;
+        }
 
         try {
-          await criarAluno(uiState.turmaAtual.id, nome);
-          input.value = "";
+          await criarAluno(uiState.turmaAtual.id, nome, dataEntrada);
+          inputNome.value = "";
+          // mantém a data de entrada, ou você pode resetar para hoje se quiser
           await renderTabAlunos();
         } catch (err) {
           alert(err.message || "Erro ao adicionar aluno.");
         }
       });
+    }
+  } else {
+    // garantir que o campo de data tenha valor padrão quando voltar para a aba
+    const inputDataEntrada = document.getElementById("novoAlunoDataEntrada");
+    if (inputDataEntrada && !inputDataEntrada.value) {
+      inputDataEntrada.value = new Date().toISOString().slice(0, 10);
     }
   }
 }
@@ -665,7 +725,7 @@ async function carregarChamadaParaData(dataStr) {
   });
 }
 
-/* ================== Tab RELATÓRIOS (versão atual, sem correção de faltas) ================== */
+/* ================== Tab RELATÓRIOS ================== */
 
 async function renderTabRelatorios() {
   if (!uiState.turmaAtual) return;
@@ -726,18 +786,18 @@ async function atualizarTabelaRelatorio(mes) {
   }
 
   alunos.forEach((aluno) => {
-    // data de criação do aluno (YYYY-MM-DD)
-    const createdDate =
-      (aluno.created_at && aluno.created_at.slice(0, 10)) || null;
+    // data de entrada do aluno na turma (YYYY-MM-DD)
+    const dataEntrada = aluno.data_entrada || null;
 
-    const chamadasValidas = createdDate
-      ? chamadas.filter((ch) => ch.data >= createdDate)
+    // considera apenas chamadas a partir da data de entrada
+    const chamadasValidas = dataEntrada
+      ? chamadas.filter((ch) => ch.data >= dataEntrada)
       : chamadas;
 
     const totalDiasValidos = chamadasValidas.length;
 
     if (!totalDiasValidos) {
-      // Nenhuma chamada onde esse aluno "existe" -> N/A
+      // Nenhuma chamada em que esse aluno "está na turma" -> N/A
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${aluno.nome}</td>
@@ -758,7 +818,7 @@ async function atualizarTabelaRelatorio(mes) {
       );
       if (reg?.presente) presencas++;
       // se não houver registro para este aluno nessa chamada válida,
-      // consideramos como falta (pois o aluno já existia na data)
+      // consideramos como falta (aluno estava na turma e a chamada foi feita)
     });
 
     const faltas = totalDiasValidos - presencas;
@@ -794,10 +854,6 @@ async function renderCalendario(mes) {
   const diaSemanaPrimeiro = primeiroDia.getDay();
   const totalDiasMes = new Date(ano, mesIndex + 1, 0).getDate();
 
-
-
-
-  
   const chamadas = await listarChamadasMes(turmaId, mes);
   if (currentView !== viewId) return;
 
@@ -831,9 +887,10 @@ async function renderCalendario(mes) {
   }
 
   for (let diaAtual = 1; diaAtual <= totalDiasMes; diaAtual++) {
-    const dataStr = `${ano}-${String(mesIndex + 1).padStart(2, "0")}-${String(
-      diaAtual
-    ).padStart(2, "0")}`;
+    const dataStr = `${ano}-${String(mesIndex + 1).padStart(
+      2,
+      "0"
+    )}-${String(diaAtual).padStart(2, "0")}`;
     const isHoje = dataStr === dataHoje;
 
     const dayDiv = document.createElement("div");
@@ -843,28 +900,41 @@ async function renderCalendario(mes) {
     const registro = mapaChamadas.get(dataStr);
 
     if (registro) {
-      // Só conta alunos que já "existiam" nessa data
+      // Só conta alunos que já "existiam" nessa data (data_entrada <= data)
       const alunosNoDia = alunos.filter((aluno) => {
-        const createdDate =
-          (aluno.created_at && aluno.created_at.slice(0, 10)) || "0000-00-00";
-        return createdDate <= dataStr;
+        const dataEntrada = aluno.data_entrada || "0000-00-00";
+        return dataEntrada <= dataStr;
       });
+      const idsAlunosNoDia = new Set(alunosNoDia.map((a) => a.id));
       const totalAlunosDia = alunosNoDia.length;
 
-      const totalReg = registro.chamada_presencas?.length ?? 0;
-      const presentes =
-        registro.chamada_presencas?.filter((p) => p.presente).length ?? 0;
+      const presencasValidas =
+        registro.chamada_presencas?.filter((p) =>
+          idsAlunosNoDia.has(p.aluno_id)
+        ) ?? [];
+
+      const totalReg = presencasValidas.length;
+      const presentes = presencasValidas.filter((p) => p.presente).length;
       const ausentes = totalReg - presentes;
 
-      let statusClass = "calendar-no-call";
-      let statusIcon = "⚠️";
-      let statusTitle = "Sem chamada";
+      let statusClass = "calendar-no-class";
+      let statusIcon = "";
+      let statusTitle = "Sem alunos na turma nesta data.";
 
-      if (totalAlunosDia > 0 && totalReg >= totalAlunosDia) {
+      if (totalAlunosDia === 0) {
+        // não havia alunos "válidos" nessa data => não faz sentido falar em chamada parcial/completa
+        statusClass = "calendar-no-class";
+        statusIcon = "";
+        statusTitle = "Sem alunos na turma nesta data.";
+      } else if (totalReg === 0) {
+        statusClass = "calendar-no-call";
+        statusIcon = "⚠️";
+        statusTitle = "Sem chamada";
+      } else if (totalReg >= totalAlunosDia) {
         statusClass = "calendar-complete";
         statusIcon = "✓";
         statusTitle = "Chamada completa";
-      } else if (totalReg > 0) {
+      } else {
         statusClass = "calendar-partial";
         statusIcon = "◐";
         statusTitle = "Chamada parcial";
@@ -881,19 +951,16 @@ async function renderCalendario(mes) {
       dayDiv.innerHTML = `
         <div class="calendar-day-number-novo">${diaAtual}</div>
         <div class="calendar-day-status">${statusIcon}</div>
-        <div class="calendar-has-call-indicator"></div>
+        ${
+          statusIcon
+            ? '<div class="calendar-has-call-indicator"></div>'
+            : ""
+        }
       `;
 
-      dayDiv.addEventListener("click", () => {
-        mostrarDetalhesCalendario(
-          dataStr,
-          presentes,
-          ausentes,
-          totalAlunosDia,
-          statusTitle,
-          mes
-        );
-      });
+dayDiv.addEventListener("click", () => {
+  mostrarDetalhesCalendario(dataStr, mes);
+});
 
       dayDiv.style.cursor = "pointer";
     } else {
@@ -935,19 +1002,123 @@ async function renderCalendario(mes) {
   container.appendChild(legenda);
 }
 
-async function mostrarDetalhesCalendario(
-  data,
-  presentes,
-  ausentes,
-  total,
-  status,
-  mesAtual
-) {
+async function mostrarDetalhesCalendario(data, mesAtual) {
   const modal = document.getElementById("calendarDetailModal");
-  if (!modal) return;
+  if (!modal || !uiState.turmaAtual) return;
+
+  // Busca chamada e alunos
+  const [chamada, alunos] = await Promise.all([
+    obterChamadaPorData(uiState.turmaAtual.id, data),
+    listarAlunos(uiState.turmaAtual.id),
+  ]);
+
+  // Se não tiver chamada, exibe mensagem amigável
+  if (!chamada) {
+    const dataFormatadaSem = new Date(data + "T00:00:00").toLocaleDateString(
+      "pt-BR",
+      {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }
+    );
+
+    modal.innerHTML = `
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Detalhes da Chamada</h3>
+          <button class="modal-close" onclick="this.closest('.modal').classList.add('hidden')">✕</button>
+        </div>
+        <div class="modal-body">
+          <p>Não há chamada registrada para <strong>${dataFormatadaSem}</strong>.</p>
+        </div>
+      </div>
+    `;
+    modal.classList.remove("hidden");
+    modal.onclick = (e) => {
+      if (e.target === modal) modal.classList.add("hidden");
+    };
+    return;
+  }
+
+  const presencas = chamada.chamada_presencas || [];
+  const presencaMap = new Map(
+    presencas.map((p) => [String(p.aluno_id), p.presente])
+  );
+
+  let totalAlunosTurma = alunos.length;
+  let totalConsideradosNoDia = 0;
+  let presentes = 0;
+  let ausentes = 0;
+  let naoAplicaveis = 0;
+  let pendentes = 0;
+
+  let linhasAlunosHtml = "";
+
+  alunos.forEach((aluno) => {
+    const alunoIdStr = String(aluno.id);
+    const dataEntrada = aluno.data_entrada || null;
+    const alunoNaData =
+      !dataEntrada || // sem data_entrada => considera desde sempre
+      dataEntrada <= data; // entrou na turma em ou antes da data da chamada
+
+    let statusTexto = "";
+    let statusClasse = "";
+
+    if (!alunoNaData) {
+      // Não aplicável (entrou depois da data da chamada)
+      statusTexto = "Ainda não era aluno nesse momento";
+      statusClasse = "status-na";
+      naoAplicaveis++;
+    } else {
+      totalConsideradosNoDia++;
+
+      if (!presencaMap.has(alunoIdStr)) {
+        // Chamada não registrada para esse aluno (pendente)
+        statusTexto = "Pendente";
+        statusClasse = "status-pendente";
+        pendentes++;
+      } else {
+        const presente = !!presencaMap.get(alunoIdStr);
+        if (presente) {
+          statusTexto = "Presente";
+          statusClasse = "status-presente";
+          presentes++;
+        } else {
+          statusTexto = "Ausente";
+          statusClasse = "status-ausente";
+          ausentes++;
+        }
+      }
+    }
+
+    linhasAlunosHtml += `
+      <tr>
+        <td>${aluno.nome}</td>
+        <td><span class="badge-status ${statusClasse}">${statusTexto}</span></td>
+      </tr>
+    `;
+  });
+
+  // Define status geral da chamada
+  let statusChamada = "";
+  let textoExplicacao = "";
+
+  if (pendentes > 0) {
+    statusChamada = "Chamada parcial";
+    textoExplicacao = `Existem ${pendentes} aluno(s) sem presença registrada (pendentes). Alguns alunos ainda não foram marcados como presentes ou ausentes.`;
+  } else {
+    statusChamada = "Chamada completa";
+    textoExplicacao =
+      "Todos os alunos considerados para esta data têm presença registrada como presente ou ausente.";
+  }
 
   const percentual =
-    total > 0 ? ((presentes / total) * 100).toFixed(1) : "0.0";
+    totalConsideradosNoDia > 0
+      ? ((presentes / totalConsideradosNoDia) * 100).toFixed(1)
+      : "0.0";
+
   const dataFormatada = new Date(data + "T00:00:00").toLocaleDateString(
     "pt-BR",
     {
@@ -957,9 +1128,6 @@ async function mostrarDetalhesCalendario(
       day: "numeric",
     }
   );
-
-  const chamada = await obterChamadaPorData(uiState.turmaAtual.id, data);
-  const temChamada = !!chamada;
 
   modal.innerHTML = `
     <div class="modal-content">
@@ -973,64 +1141,87 @@ async function mostrarDetalhesCalendario(
           <span class="detail-value">${dataFormatada}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Status:</span>
-          <span class="detail-value detail-status">${status}</span>
+          <span class="detail-label">Turma:</span>
+          <span class="detail-value">${uiState.turmaAtual.nome}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Presentes:</span>
-          <span class="detail-value detail-present">${presentes}/${total}</span>
+          <span class="detail-label">Status da chamada:</span>
+          <span class="detail-value detail-status">${statusChamada}</span>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Ausentes:</span>
-          <span class="detail-value detail-absent">${ausentes}/${total}</span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Frequência:</span>
-          <span class="detail-value detail-percent">${percentual}%</span>
-        </div>
-        <div class="detail-progress">
-          <div class="progress-bar" style="width: ${percentual}%"></div>
-        </div>
-        ${
-          temChamada
-            ? `
-          <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
-            <button id="btnRemoverChamada" class="btn btn-outline" style="width: 100%; color: #b91c1c; border-color: #fecaca;">
-              🗑️ Remover Chamada
-            </button>
+
+        <div class="chamada-detalhe-resumo">
+          <div><strong>Total de alunos (turma):</strong> ${totalAlunosTurma}</div>
+          <div><strong>Considerados nesta data:</strong> ${totalConsideradosNoDia}</div>
+          <div class="resumo-linha">
+            <span class="badge-status status-presente">Presentes: ${presentes}</span>
+            <span class="badge-status status-ausente">Ausentes: ${ausentes}</span>
           </div>
-        `
-            : ""
-        }
+          <div class="resumo-linha">
+            <span class="badge-status status-na">N/A: ${naoAplicaveis}</span>
+            <span class="badge-status status-pendente">Pendentes: ${pendentes}</span>
+          </div>
+          <div class="detail-progress">
+            <div class="progress-bar" style="width: ${percentual}%"></div>
+          </div>
+          <div class="detail-row" style="border-bottom:none; padding-top:0.5rem;">
+            <span class="detail-label">Frequência:</span>
+            <span class="detail-value detail-percent">${percentual}%</span>
+          </div>
+        </div>
+
+        <div class="chamada-detalhe-explicacao">
+          ${textoExplicacao}
+        </div>
+
+        <h4 style="margin-top:1rem; margin-bottom:0.5rem;">Alunos e status</h4>
+        <div class="chamada-detalhe-lista-wrapper">
+          <table class="chamada-detalhe-tabela">
+            <thead>
+              <tr>
+                <th>Aluno</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhasAlunosHtml}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+          <button id="btnRemoverChamada" class="btn btn-outline" style="width: 100%; color: #b91c1c; border-color: #fecaca;">
+            🗑️ Remover Chamada
+          </button>
+        </div>
       </div>
     </div>
   `;
 
   modal.classList.remove("hidden");
 
-  modal.addEventListener("click", (e) => {
+  // Fechar clicando fora
+  modal.onclick = (e) => {
     if (e.target === modal) modal.classList.add("hidden");
-  });
+  };
 
-  if (temChamada) {
-    const btnRemover = document.getElementById("btnRemoverChamada");
-    if (btnRemover) {
-      btnRemover.addEventListener("click", async () => {
-        const confirmar = confirm(
-          `Tem certeza que deseja remover a chamada de ${dataFormatada}? Esta ação não pode ser desfeita.`
-        );
-        if (!confirmar) return;
+  // Remoção de chamada (já existia antes, preservado)
+  const btnRemover = document.getElementById("btnRemoverChamada");
+  if (btnRemover) {
+    btnRemover.addEventListener("click", async () => {
+      const confirmar = confirm(
+        `Tem certeza que deseja remover a chamada de ${dataFormatada}? Esta ação não pode ser desfeita.`
+      );
+      if (!confirmar) return;
 
-        try {
-          await removerChamada(uiState.turmaAtual.id, data);
-          modal.classList.add("hidden");
-          await renderCalendario(mesAtual);
-          alert("Chamada removida com sucesso!");
-        } catch (err) {
-          alert(err.message || "Erro ao remover chamada.");
-        }
-      });
-    }
+      try {
+        await removerChamada(uiState.turmaAtual.id, data);
+        modal.classList.add("hidden");
+        await renderCalendario(mesAtual);
+        alert("Chamada removida com sucesso!");
+      } catch (err) {
+        alert(err.message || "Erro ao remover chamada.");
+      }
+    });
   }
 }
 
@@ -1081,25 +1272,25 @@ async function exportarPdfRelatorio() {
           <h3>Dia ${diaAtual} (${diaSemanaNome})</h3>
           <ul>
       `;
-alunos.forEach((aluno) => {
-  const createdDate =
-    (aluno.created_at && aluno.created_at.slice(0, 10)) || null;
+      alunos.forEach((aluno) => {
+        const dataEntrada = aluno.data_entrada || null;
 
-  let status = "N/A";
+        let status = "Ainda não era aluno nesse momento";
 
-  if (!createdDate || dataStr >= createdDate) {
-    const presenca = chamadaDoDia.chamada_presencas.find(
-      (p) => p.aluno_id === aluno.id
-    );
-    if (!presenca) {
-      status = "N/A";
-    } else {
-      status = presenca.presente ? "Presente" : "Ausente";
-    }
-  }
+        // só considera a partir da data de entrada na turma
+        if (!dataEntrada || dataStr >= dataEntrada) {
+          const presenca = chamadaDoDia.chamada_presencas.find(
+            (p) => p.aluno_id === aluno.id
+          );
+          if (!presenca) {
+            status = "Ainda não era aluno nesse momento";
+          } else {
+            status = presenca.presente ? "Presente" : "Ausente";
+          }
+        }
 
-  detalhesDiariosHtml += `<li>Aluno ${aluno.nome}: ${status}</li>`;
-});
+        detalhesDiariosHtml += `<li>Aluno ${aluno.nome}: ${status}</li>`;
+      });
       detalhesDiariosHtml += `</ul></div>`;
     }
   }
