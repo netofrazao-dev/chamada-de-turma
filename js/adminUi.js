@@ -7,6 +7,7 @@ import {
   adminRemoverEmailAutorizado,
   listarChamadasMes,
   formatarDataBR,
+  calcularHorasPorProfessor, // NOVO
 } from "./api.js";
 
 const adminState = {
@@ -399,44 +400,101 @@ async function carregarTabChamadasAdmin() {
 /* ================== Aba: Professores ================== */
 
 async function carregarTabProfessoresAdmin() {
-  const tbody = document.getElementById("adminProfessoresTableBody");
+  const tbody   = document.getElementById("adminProfessoresTableBody");
   const statusEl = document.getElementById("adminProfessoresStatus");
   if (!tbody) return;
 
-  tbody.innerHTML = "";
-  statusEl.textContent = "";
+  if (statusEl) statusEl.textContent = "";
+
+  // Adiciona filtro de período (apenas uma vez)
+  if (!document.getElementById("adminHorasFiltro")) {
+    const filtro = document.createElement("div");
+    filtro.id = "adminHorasFiltro";
+    filtro.className = "admin-filters";
+    filtro.innerHTML = `
+      <div class="field-group">
+        <label for="adminHorasInicio">De</label>
+        <input type="date" id="adminHorasInicio">
+      </div>
+      <div class="field-group">
+        <label for="adminHorasFim">Até</label>
+        <input type="date" id="adminHorasFim">
+      </div>
+      <button id="adminHorasFiltrarBtn" class="btn btn-secondary">Filtrar</button>
+      <button id="adminHorasLimparBtn" class="btn btn-outline">Limpar</button>
+    `;
+    tbody.closest(".schedule-table-wrapper").before(filtro);
+
+    document.getElementById("adminHorasFiltrarBtn")
+      ?.addEventListener("click", carregarHorasProfessores);
+
+    document.getElementById("adminHorasLimparBtn")
+      ?.addEventListener("click", () => {
+        document.getElementById("adminHorasInicio").value = "";
+        document.getElementById("adminHorasFim").value = "";
+        carregarHorasProfessores();
+      });
+  }
+
+  // Atualiza cabeçalho da tabela
+  const thead = tbody.closest("table")?.querySelector("thead tr");
+  if (thead) {
+    thead.innerHTML = `
+      <th>Nome</th>
+      <th>Email</th>
+      <th>Perfil</th>
+      <th>H. Próprias</th>
+      <th>H. Substituição</th>
+      <th>Total</th>
+    `;
+  }
+
+  await carregarHorasProfessores();
+}
+
+async function carregarHorasProfessores() {
+  const tbody   = document.getElementById("adminProfessoresTableBody");
+  const statusEl = document.getElementById("adminProfessoresStatus");
+  if (!tbody) return;
+
+  tbody.innerHTML = "<tr><td colspan='6'>Carregando...</td></tr>";
 
   try {
-    const professores = await adminListarProfessores();
+    const inicio = document.getElementById("adminHorasInicio")?.value || undefined;
+    const fim    = document.getElementById("adminHorasFim")?.value   || undefined;
 
-    if (!professores.length) {
-      tbody.innerHTML =
-        "<tr><td colspan='3'>Nenhum professor cadastrado.</td></tr>";
+    const dados = await calcularHorasPorProfessor({ inicio, fim });
+
+    tbody.innerHTML = "";
+
+    if (!dados.length) {
+      tbody.innerHTML = "<tr><td colspan='6'>Nenhum professor encontrado.</td></tr>";
       return;
     }
 
-    professores.forEach((p) => {
+    dados.forEach((p) => {
+      const roleLabel = p.role === "admin" ? "Admin" : "Professor";
       const tr = document.createElement("tr");
-      const roleLabel =
-        p.role === "admin" ? "Admin" : p.role === "professor" ? "Professor" : p.role;
-
       tr.innerHTML = `
         <td>${p.nome || "-"}</td>
         <td>${p.email || "-"}</td>
         <td>
-          <span class="role-badge ${
-            p.role === "admin" ? "role-admin" : "role-professor"
-          }">
-            ${roleLabel || "-"}
+          <span class="role-badge ${p.role === "admin" ? "role-admin" : "role-professor"}">
+            ${roleLabel}
           </span>
         </td>
+        <td>${p.horas_proprias.toFixed(1)}h</td>
+        <td>${p.horas_substituicao.toFixed(1)}h</td>
+        <td><strong>${p.horas_total.toFixed(1)}h</strong></td>
       `;
       tbody.appendChild(tr);
     });
   } catch (err) {
-    statusEl.style.color = "#e53935";
-    statusEl.textContent =
-      err.message || "Erro ao carregar professores. Verifique permissões.";
+    if (statusEl) {
+      statusEl.style.color = "#e53935";
+      statusEl.textContent = err.message || "Erro ao carregar horas dos professores.";
+    }
+    tbody.innerHTML = "<tr><td colspan='6'>Erro ao carregar dados.</td></tr>";
   }
 }
 

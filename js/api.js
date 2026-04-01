@@ -8,10 +8,9 @@ export function formatarDataBR(data) {
 }
 
 export function getMesInicioFim(mesStr) {
-  // mesStr = "YYYY-MM"
   const [ano, mes] = mesStr.split("-").map(Number);
   const inicio = new Date(ano, mes - 1, 1);
-  const fim = new Date(ano, mes, 1); // primeiro dia do mês seguinte
+  const fim = new Date(ano, mes, 1);
   return {
     inicio: inicio.toISOString().slice(0, 10),
     fim: fim.toISOString().slice(0, 10),
@@ -49,7 +48,6 @@ export async function criarTurma({ nome, descricao }) {
   const nomeLimpo = nome.trim();
   if (!nomeLimpo) throw new Error("Informe o nome da turma.");
 
-  // pega professor atual
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Usuário não autenticado.");
 
@@ -61,7 +59,6 @@ export async function criarTurma({ nome, descricao }) {
 
   if (errProf) throw errProf;
 
-  // checagem de duplicidade por nome para este professor
   const { data: turmaExistente, error: dupErr } = await supabase
     .from("turmas")
     .select("id")
@@ -106,7 +103,6 @@ export async function criarAluno(turmaId, nome, dataEntrada) {
   const payload = {
     turma_id: turmaId,
     nome,
-    // usar sempre data_entrada como referência de início na turma
     data_entrada: dataEntrada || null,
   };
 
@@ -120,7 +116,6 @@ export async function criarAluno(turmaId, nome, dataEntrada) {
   return data;
 }
 
-// atualizar apenas o nome do aluno
 export async function atualizarAlunoNome(alunoId, novoNome) {
   const nomeLimpo = (novoNome || "").trim();
   if (!nomeLimpo) throw new Error("Informe um nome válido.");
@@ -134,6 +129,15 @@ export async function atualizarAlunoNome(alunoId, novoNome) {
 
   if (error) throw error;
   return data;
+}
+
+export async function removerAluno(alunoId) {
+  const { error } = await supabase
+    .from("alunos")
+    .update({ ativo: false })
+    .eq("id", alunoId);
+
+  if (error) throw error;
 }
 
 /* --------- Horários --------- */
@@ -167,7 +171,7 @@ export async function criarHorario(turmaId, diaSemana, horarioTexto) {
 export async function obterChamadaPorData(turmaId, dataStr) {
   const { data, error } = await supabase
     .from("chamadas")
-    .select("id, data, chamada_presencas(aluno_id, presente)")
+    .select("id, data, foi_ministrada, professor_substituto_id, chamada_presencas(aluno_id, presente)")
     .eq("turma_id", turmaId)
     .eq("data", dataStr)
     .maybeSingle();
@@ -176,15 +180,16 @@ export async function obterChamadaPorData(turmaId, dataStr) {
   return data ?? null;
 }
 
-// Salva chamada como no sistema atual:
-// - uma chamada por turma+data
-// - presença por aluno
-export async function salvarChamada(turmaId, dataStr, presentesIds, todosAlunos) {
-  // verifica se já existe
+export async function salvarChamada(
+  turmaId,
+  dataStr,
+  presentesIds,
+  todosAlunos,
+  { foiMinistrada = true, professorSubstitutoId = null } = {}
+) {
   const existente = await obterChamadaPorData(turmaId, dataStr);
 
   if (existente) {
-    // apaga chamada antiga (cascade em presenças)
     const { error: delErr } = await supabase
       .from("chamadas")
       .delete()
@@ -192,10 +197,14 @@ export async function salvarChamada(turmaId, dataStr, presentesIds, todosAlunos)
     if (delErr) throw delErr;
   }
 
-  // cria nova chamada
   const { data: chamada, error: chErr } = await supabase
     .from("chamadas")
-    .insert({ turma_id: turmaId, data: dataStr })
+    .insert({
+      turma_id: turmaId,
+      data: dataStr,
+      foi_ministrada: foiMinistrada,
+      professor_substituto_id: professorSubstitutoId || null,
+    })
     .select("id")
     .single();
 
@@ -203,7 +212,6 @@ export async function salvarChamada(turmaId, dataStr, presentesIds, todosAlunos)
 
   const chamadaId = chamada.id;
 
-  // insere presenças para todos os alunos
   const registros = todosAlunos.map((aluno) => ({
     chamada_id: chamadaId,
     aluno_id: aluno.id,
@@ -223,7 +231,11 @@ export async function removerChamada(turmaId, dataStr) {
   const chamada = await obterChamadaPorData(turmaId, dataStr);
   if (!chamada) return false;
 
-  const { error } = await supabase.from("chamadas").delete().eq("id", chamada.id);
+  const { error } = await supabase
+    .from("chamadas")
+    .delete()
+    .eq("id", chamada.id);
+
   if (error) throw error;
   return true;
 }
@@ -234,7 +246,7 @@ export async function listarChamadasMes(turmaId, mesStr) {
 
   const { data, error } = await supabase
     .from("chamadas")
-    .select("id, data, chamada_presencas(aluno_id, presente)")
+    .select("id, data, foi_ministrada, professor_substituto_id, chamada_presencas(aluno_id, presente)")
     .eq("turma_id", turmaId)
     .gte("data", inicio)
     .lt("data", fim)
@@ -253,30 +265,16 @@ export async function excluirTurma(turmaId) {
   if (error) throw error;
 }
 
-// ... tudo que já existe acima ...
-
-export async function removerAluno(alunoId) {
-  // soft delete: marca inativo para não quebrar relatórios antigos
-  const { error } = await supabase
-    .from("alunos")
-    .update({ ativo: false })
-    .eq("id", alunoId);
-
-  if (error) throw error;
-}
-
-/* --------- ADMIN: detecção e recursos --------- */
-
+/* --------- ADMIN --------- */
 export async function isAdmin() {
   try {
     const prof = await getProfessorAtual();
     return prof?.role === "admin";
-  } catch (e) {
+  } catch {
     return false;
   }
 }
 
-/** Lista TODAS as turmas (ativas e inativas) para o admin */
 export async function adminListarTodasTurmas() {
   const { data, error } = await supabase
     .from("turmas")
@@ -287,7 +285,6 @@ export async function adminListarTodasTurmas() {
   return data || [];
 }
 
-/** Lista todos os professores com role */
 export async function adminListarProfessores() {
   const { data, error } = await supabase
     .from("professores")
@@ -298,7 +295,6 @@ export async function adminListarProfessores() {
   return data || [];
 }
 
-/** Lista todos os emails autorizados */
 export async function adminListarEmailsAutorizados() {
   const { data, error } = await supabase
     .from("emails_autorizados")
@@ -309,7 +305,6 @@ export async function adminListarEmailsAutorizados() {
   return data || [];
 }
 
-/** Adiciona um novo email autorizado */
 export async function adminAdicionarEmailAutorizado(email) {
   const emailLimpo = (email || "").trim().toLowerCase();
   if (!emailLimpo) throw new Error("Informe um email.");
@@ -321,16 +316,15 @@ export async function adminAdicionarEmailAutorizado(email) {
     .single();
 
   if (error) {
-    // 23505 = unique violation (caso exista unique(email))
     if (error.code === "23505") {
       throw new Error("Este email já está autorizado.");
     }
     throw error;
   }
+
   return data;
 }
 
-/** Remove email autorizado pelo id */
 export async function adminRemoverEmailAutorizado(id) {
   const { error } = await supabase
     .from("emails_autorizados")
@@ -338,4 +332,68 @@ export async function adminRemoverEmailAutorizado(id) {
     .eq("id", id);
 
   if (error) throw error;
+}
+
+/* --------- NOVO: Horas por professor --------- */
+export async function calcularHorasPorProfessor({ inicio, fim } = {}) {
+  const [professores, turmasRes] = await Promise.all([
+    adminListarProfessores(),
+    supabase.from("turmas").select("id, professor_id"),
+  ]);
+
+  if (turmasRes.error) throw turmasRes.error;
+
+  const turmaMap = new Map((turmasRes.data || []).map(t => [t.id, t.professor_id]));
+
+  let qProprias = supabase
+    .from("chamadas")
+    .select("horas_aula, turma_id")
+    .eq("foi_ministrada", true)
+    .is("professor_substituto_id", null);
+
+  let qSubs = supabase
+    .from("chamadas")
+    .select("horas_aula, professor_substituto_id")
+    .eq("foi_ministrada", true)
+    .not("professor_substituto_id", "is", null);
+
+  if (inicio) {
+    qProprias = qProprias.gte("data", inicio);
+    qSubs = qSubs.gte("data", inicio);
+  }
+  if (fim) {
+    qProprias = qProprias.lte("data", fim);
+    qSubs = qSubs.lte("data", fim);
+  }
+
+  const [{ data: proprias, error: e1 }, { data: subs, error: e2 }] =
+    await Promise.all([qProprias, qSubs]);
+
+  if (e1) throw e1;
+  if (e2) throw e2;
+
+  const horasMap = new Map(
+    professores.map(p => [p.id, { ...p, horas_proprias: 0, horas_substituicao: 0 }])
+  );
+
+  (proprias || []).forEach(c => {
+    const profId = turmaMap.get(c.turma_id);
+    if (profId && horasMap.has(profId)) {
+      horasMap.get(profId).horas_proprias += Number(c.horas_aula || 1.5);
+    }
+  });
+
+  (subs || []).forEach(c => {
+    const profId = c.professor_substituto_id;
+    if (profId && horasMap.has(profId)) {
+      horasMap.get(profId).horas_substituicao += Number(c.horas_aula || 1.5);
+    }
+  });
+
+  return Array.from(horasMap.values())
+    .map(p => ({
+      ...p,
+      horas_total: p.horas_proprias + p.horas_substituicao,
+    }))
+    .sort((a, b) => b.horas_total - a.horas_total);
 }

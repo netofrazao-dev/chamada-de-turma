@@ -18,14 +18,13 @@ import { getCurrentUser } from "./auth.js";
 
 export const uiState = {
   turmas: [],
-  turmaAtual: null, // objeto turma
-  alunosTurmaAtual: [], // array de alunos
-  presencas: new Map(), // alunoId -> true/false
-
-  // controle de admin
+  turmaAtual: null,
+  alunosTurmaAtual: [],
+  presencas: new Map(),
   isAdmin: false,
   adminProfessores: [],
   adminProfessorSelecionado: null,
+  todosProfessores: [], // NOVO: cache para o select de substituto
 };
 
 // ⬇️ controle simples de qual "tela" está ativa para evitar race condition
@@ -594,21 +593,95 @@ async function renderTabAlunos() {
   }
 }
 
-/* ================== Tab CHAMADA ================== */
+// NOVA: monta e insere a seção "Ministrada?" antes da lista de alunos
+async function initMinistradaSection() {
+  const lista = document.getElementById("listaAlunosChamada");
+  if (!lista) return;
 
+  // Remove seção anterior se existir
+  document.getElementById("aula-ministrada-section")?.remove();
+
+  // Carrega professores uma vez e faz cache
+  if (!uiState.todosProfessores.length) {
+    try {
+      uiState.todosProfessores = await adminListarProfessores();
+    } catch {
+      uiState.todosProfessores = [];
+    }
+  }
+
+  const section = document.createElement("div");
+  section.id = "aula-ministrada-section";
+  section.className = "aula-ministrada-section";
+  section.innerHTML = `
+    <label class="ministrada-label">
+      <input type="checkbox" id="foiMinistradaCheck" checked>
+      <span>Eu ministrei esta aula</span>
+    </label>
+    <div id="substitutoContainer" class="hidden" style="margin-top:0.6rem;">
+      <div class="field-group">
+        <label for="professorSubstitutoSelect">Professor substituto</label>
+        <select id="professorSubstitutoSelect">
+          <option value="">Nenhum (aula não aconteceu)</option>
+          ${uiState.todosProfessores.map(p =>
+            `<option value="${p.id}">${p.nome || p.email}</option>`
+          ).join("")}
+        </select>
+      </div>
+    </div>
+    <p id="horasInfo" class="help-text ministrada-info ministrada-info--ok">
+      ✓ Esta aula valerá 1.5h para você.
+    </p>
+  `;
+
+  lista.parentNode.insertBefore(section, lista);
+
+  const check   = section.querySelector("#foiMinistradaCheck");
+  const subCont = section.querySelector("#substitutoContainer");
+  const subSel  = section.querySelector("#professorSubstitutoSelect");
+
+  check.addEventListener("change", () => {
+    subCont.classList.toggle("hidden", check.checked);
+    atualizarInfoHoras(check.checked, subSel?.value || null);
+  });
+
+  subSel?.addEventListener("change", () => {
+    atualizarInfoHoras(check.checked, subSel.value || null);
+  });
+}
+
+// NOVA: atualiza o texto informativo de horas
+function atualizarInfoHoras(foiMinistrada, substitutoId) {
+  const el = document.getElementById("horasInfo");
+  if (!el) return;
+  el.className = "help-text ministrada-info";
+
+  if (foiMinistrada) {
+    el.classList.add("ministrada-info--ok");
+    el.textContent = "✓ Esta aula valerá 1.5h para você.";
+  } else if (substitutoId) {
+    el.classList.add("ministrada-info--warn");
+    el.textContent = "⚠ Você não ministrou. As 1.5h vão para o professor substituto.";
+  } else {
+    el.classList.add("ministrada-info--err");
+    el.textContent = "✗ Sem substituto. Nenhuma hora será contabilizada.";
+  }
+}
+
+
+/* ================== Tab CHAMADA ================== */
 async function renderTabChamada() {
   const viewId = currentView;
 
-  const lista = document.getElementById("listaAlunosChamada");
+  const lista    = document.getElementById("listaAlunosChamada");
   const dataInput = document.getElementById("dataChamada");
   const salvarBtn = document.getElementById("salvarChamadaBtn");
-  const statusEl = document.getElementById("mensagemStatus");
+  const statusEl  = document.getElementById("mensagemStatus");
 
   if (!lista || !uiState.turmaAtual) return;
 
   if (dataInput && !dataInput.value) {
-    const hoje = new Date();
-    dataInput.value = hoje.toISOString().split("T")[0];
+    dataInput.value = new Date().toISOString().split("T")[0];
   }
 
   uiState.alunosTurmaAtual = await listarAlunos(uiState.turmaAtual.id);
@@ -616,9 +689,11 @@ async function renderTabChamada() {
 
   lista.innerHTML = "";
 
+  // Seção "Ministrada?"
+  await initMinistradaSection();
+
   if (!uiState.alunosTurmaAtual.length) {
-    lista.innerHTML =
-      "<p class='help-text'>Cadastre alunos na aba Alunos antes de fazer a chamada.</p>";
+    lista.innerHTML = "<p class='help-text'>Cadastre alunos na aba Alunos antes de fazer a chamada.</p>";
     if (salvarBtn) salvarBtn.disabled = true;
     return;
   }
@@ -630,7 +705,6 @@ async function renderTabChamada() {
     const row = document.createElement("div");
     row.className = "chamada-row";
     row.dataset.alunoId = aluno.id;
-
     row.innerHTML = `
       <span class="chamada-aluno-nome">${aluno.nome}</span>
       <div class="chamada-buttons">
@@ -640,7 +714,7 @@ async function renderTabChamada() {
     `;
 
     const btnPresente = row.querySelector(".btn-presenca.present");
-    const btnAusente = row.querySelector(".btn-presenca.absent");
+    const btnAusente  = row.querySelector(".btn-presenca.absent");
 
     btnPresente.addEventListener("click", () => {
       uiState.presencas.set(aluno.id, true);
@@ -675,19 +749,25 @@ async function renderTabChamada() {
         const presentesIds = uiState.alunosTurmaAtual
           .filter((a) => uiState.presencas.get(a.id) === true)
           .map((a) => a.id);
+
+        // Lê os novos campos do DOM
+        const foiMinistradaCheck       = document.getElementById("foiMinistradaCheck");
+        const professorSubstitutoSelect = document.getElementById("professorSubstitutoSelect");
+        const foiMinistrada       = foiMinistradaCheck ? foiMinistradaCheck.checked : true;
+        const professorSubstitutoId = (!foiMinistrada && professorSubstitutoSelect?.value)
+          ? professorSubstitutoSelect.value
+          : null;
+
         await salvarChamada(
           uiState.turmaAtual.id,
           dataInput.value,
           presentesIds,
-          uiState.alunosTurmaAtual
+          uiState.alunosTurmaAtual,
+          { foiMinistrada, professorSubstitutoId }
         );
         setStatus(statusEl, "Chamada salva com sucesso.");
       } catch (err) {
-        setStatus(
-          statusEl,
-          err.message || "Erro ao salvar chamada.",
-          true
-        );
+        setStatus(statusEl, err.message || "Erro ao salvar chamada.", true);
       }
     });
   }
@@ -700,28 +780,47 @@ async function carregarChamadaParaData(dataStr) {
   const chamada = await obterChamadaPorData(uiState.turmaAtual.id, dataStr);
   if (currentView !== viewId) return;
 
+  // Pré-popular foi_ministrada e substituto
+  const foiMinistradaCheck        = document.getElementById("foiMinistradaCheck");
+  const subContainer              = document.getElementById("substitutoContainer");
+  const professorSubstitutoSelect = document.getElementById("professorSubstitutoSelect");
+
+  if (foiMinistradaCheck) {
+    const foiMinistrada = chamada ? (chamada.foi_ministrada !== false) : true;
+    foiMinistradaCheck.checked = foiMinistrada;
+
+    if (!foiMinistrada) {
+      subContainer?.classList.remove("hidden");
+      if (professorSubstitutoSelect) {
+        professorSubstitutoSelect.value = chamada?.professor_substituto_id || "";
+      }
+    } else {
+      subContainer?.classList.add("hidden");
+      if (professorSubstitutoSelect) professorSubstitutoSelect.value = "";
+    }
+
+    atualizarInfoHoras(foiMinistrada, chamada?.professor_substituto_id || null);
+  }
+
+  // Presenças (lógica original)
   uiState.presencas = new Map();
   const rows = document.querySelectorAll(".chamada-row");
   rows.forEach((row) => {
     const alunoId = row.dataset.alunoId;
     const btnP = row.querySelector(".btn-presenca.present");
     const btnA = row.querySelector(".btn-presenca.absent");
+    if (!btnP || !btnA) return;
     btnP.classList.remove("selected");
     btnA.classList.remove("selected");
 
     if (!chamada) return;
 
-    const reg = chamada.chamada_presencas?.find(
-      (p) => p.aluno_id === alunoId
-    );
+    const reg = chamada.chamada_presencas?.find((p) => p.aluno_id === alunoId);
     if (!reg) return;
 
     uiState.presencas.set(alunoId, !!reg.presente);
-    if (reg.presente) {
-      btnP.classList.add("selected");
-    } else {
-      btnA.classList.add("selected");
-    }
+    if (reg.presente) btnP.classList.add("selected");
+    else btnA.classList.add("selected");
   });
 }
 
