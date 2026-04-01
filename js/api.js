@@ -17,9 +17,11 @@ export function getMesInicioFim(mesStr) {
   };
 }
 
-/* --------- Professor --------- */
+/* --------- Professor (usuário atual) --------- */
 export async function getProfessorAtual() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return null;
 
   const { data, error } = await supabase
@@ -48,7 +50,9 @@ export async function criarTurma({ nome, descricao }) {
   const nomeLimpo = nome.trim();
   if (!nomeLimpo) throw new Error("Informe o nome da turma.");
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) throw new Error("Usuário não autenticado.");
 
   const { data: prof, error: errProf } = await supabase
@@ -84,6 +88,15 @@ export async function criarTurma({ nome, descricao }) {
 
   if (error) throw error;
   return data;
+}
+
+export async function excluirTurma(turmaId) {
+  const { error } = await supabase
+    .from("turmas")
+    .update({ ativo: false })
+    .eq("id", turmaId);
+
+  if (error) throw error;
 }
 
 /* --------- Alunos --------- */
@@ -168,16 +181,37 @@ export async function criarHorario(turmaId, diaSemana, horarioTexto) {
 }
 
 /* --------- Chamadas --------- */
+
 export async function obterChamadaPorData(turmaId, dataStr) {
   const { data, error } = await supabase
     .from("chamadas")
-    .select("id, data, foi_ministrada, professor_substituto_id, chamada_presencas(aluno_id, presente)")
+    .select(
+      "id, data, foi_ministrada, professor_substituto_id, substituto_nome_manual, chamada_presencas(aluno_id, presente)"
+    )
     .eq("turma_id", turmaId)
     .eq("data", dataStr)
     .maybeSingle();
 
+  // PGRST116 = "No rows"
   if (error && error.code !== "PGRST116") throw error;
   return data ?? null;
+}
+
+export async function listarChamadasMes(turmaId, mesStr) {
+  const { inicio, fim } = getMesInicioFim(mesStr);
+
+  const { data, error } = await supabase
+    .from("chamadas")
+    .select(
+      "id, data, foi_ministrada, professor_substituto_id, substituto_nome_manual, chamada_presencas(aluno_id, presente)"
+    )
+    .eq("turma_id", turmaId)
+    .gte("data", inicio)
+    .lt("data", fim)
+    .order("data", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
 }
 
 export async function salvarChamada(
@@ -185,7 +219,11 @@ export async function salvarChamada(
   dataStr,
   presentesIds,
   todosAlunos,
-  { foiMinistrada = true, professorSubstitutoId = null } = {}
+  {
+    foiMinistrada = true,
+    professorSubstitutoId = null,
+    substitutoNomeManual = null,
+  } = {}
 ) {
   const existente = await obterChamadaPorData(turmaId, dataStr);
 
@@ -204,16 +242,15 @@ export async function salvarChamada(
       data: dataStr,
       foi_ministrada: foiMinistrada,
       professor_substituto_id: professorSubstitutoId || null,
+      substituto_nome_manual: substitutoNomeManual || null,
     })
     .select("id")
     .single();
 
   if (chErr) throw chErr;
 
-  const chamadaId = chamada.id;
-
   const registros = todosAlunos.map((aluno) => ({
-    chamada_id: chamadaId,
+    chamada_id: chamada.id,
     aluno_id: aluno.id,
     presente: presentesIds.includes(aluno.id),
   }));
@@ -224,7 +261,7 @@ export async function salvarChamada(
 
   if (presErr) throw presErr;
 
-  return chamadaId;
+  return chamada.id;
 }
 
 export async function removerChamada(turmaId, dataStr) {
@@ -240,49 +277,23 @@ export async function removerChamada(turmaId, dataStr) {
   return true;
 }
 
-/* --------- Relatórios --------- */
-export async function listarChamadasMes(turmaId, mesStr) {
-  const { inicio, fim } = getMesInicioFim(mesStr);
+/* --------- Admin / permissões --------- */
 
-  const { data, error } = await supabase
-    .from("chamadas")
-    .select("id, data, foi_ministrada, professor_substituto_id, chamada_presencas(aluno_id, presente)")
-    .eq("turma_id", turmaId)
-    .gte("data", inicio)
-    .lt("data", fim)
-    .order("data", { ascending: true });
-
-  if (error) throw error;
-  return data || [];
-}
-
-export async function excluirTurma(turmaId) {
-  const { error } = await supabase
-    .from("turmas")
-    .delete()
-    .eq("id", turmaId);
-
-  if (error) throw error;
-}
-
-/* --------- ADMIN --------- */
 export async function isAdmin() {
-  try {
-    const prof = await getProfessorAtual();
-    return prof?.role === "admin";
-  } catch {
-    return false;
-  }
-}
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
 
-export async function adminListarTodasTurmas() {
   const { data, error } = await supabase
-    .from("turmas")
-    .select("*")
-    .order("created_at", { ascending: true });
+    .from("professores")
+    .select("role")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
 
-  if (error) throw error;
-  return data || [];
+  if (error && error.code !== "PGRST116") throw error;
+
+  return data?.role === "admin";
 }
 
 export async function adminListarProfessores() {
@@ -294,6 +305,18 @@ export async function adminListarProfessores() {
   if (error) throw error;
   return data || [];
 }
+
+export async function adminListarTodasTurmas() {
+  const { data, error } = await supabase
+    .from("turmas")
+    .select("id, nome, descricao, ativo, professor_id, professores(nome, email)")
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/* --------- Admin: e-mails autorizados --------- */
 
 export async function adminListarEmailsAutorizados() {
   const { data, error } = await supabase
@@ -307,7 +330,17 @@ export async function adminListarEmailsAutorizados() {
 
 export async function adminAdicionarEmailAutorizado(email) {
   const emailLimpo = (email || "").trim().toLowerCase();
-  if (!emailLimpo) throw new Error("Informe um email.");
+  if (!emailLimpo) throw new Error("Informe um e-mail válido.");
+
+  // evita duplicado
+  const { data: existente, error: dupErr } = await supabase
+    .from("emails_autorizados")
+    .select("id")
+    .eq("email", emailLimpo)
+    .maybeSingle();
+
+  if (dupErr && dupErr.code !== "PGRST116") throw dupErr;
+  if (existente) throw new Error("Este e-mail já está autorizado.");
 
   const { data, error } = await supabase
     .from("emails_autorizados")
@@ -315,13 +348,7 @@ export async function adminAdicionarEmailAutorizado(email) {
     .select("*")
     .single();
 
-  if (error) {
-    if (error.code === "23505") {
-      throw new Error("Este email já está autorizado.");
-    }
-    throw error;
-  }
-
+  if (error) throw error;
   return data;
 }
 
@@ -334,7 +361,8 @@ export async function adminRemoverEmailAutorizado(id) {
   if (error) throw error;
 }
 
-/* --------- NOVO: Horas por professor --------- */
+/* --------- Relatórios: horas por professor --------- */
+
 export async function calcularHorasPorProfessor({ inicio, fim } = {}) {
   const [professores, turmasRes] = await Promise.all([
     adminListarProfessores(),
@@ -343,18 +371,21 @@ export async function calcularHorasPorProfessor({ inicio, fim } = {}) {
 
   if (turmasRes.error) throw turmasRes.error;
 
-  const turmaMap = new Map((turmasRes.data || []).map(t => [t.id, t.professor_id]));
+  const turmaMap = new Map(
+    (turmasRes.data || []).map((t) => [t.id, t.professor_id])
+  );
 
+  // Aulas que o próprio professor ministrou (foi_ministrada = true)
   let qProprias = supabase
     .from("chamadas")
     .select("horas_aula, turma_id")
-    .eq("foi_ministrada", true)
-    .is("professor_substituto_id", null);
+    .eq("foi_ministrada", true);
 
+  // Aulas que ele foi substituto (foi_ministrada = false + professor_substituto_id)
   let qSubs = supabase
     .from("chamadas")
     .select("horas_aula, professor_substituto_id")
-    .eq("foi_ministrada", true)
+    .eq("foi_ministrada", false)
     .not("professor_substituto_id", "is", null);
 
   if (inicio) {
@@ -373,17 +404,20 @@ export async function calcularHorasPorProfessor({ inicio, fim } = {}) {
   if (e2) throw e2;
 
   const horasMap = new Map(
-    professores.map(p => [p.id, { ...p, horas_proprias: 0, horas_substituicao: 0 }])
+    professores.map((p) => [
+      p.id,
+      { ...p, horas_proprias: 0, horas_substituicao: 0 },
+    ])
   );
 
-  (proprias || []).forEach(c => {
+  (proprias || []).forEach((c) => {
     const profId = turmaMap.get(c.turma_id);
     if (profId && horasMap.has(profId)) {
       horasMap.get(profId).horas_proprias += Number(c.horas_aula || 1.5);
     }
   });
 
-  (subs || []).forEach(c => {
+  (subs || []).forEach((c) => {
     const profId = c.professor_substituto_id;
     if (profId && horasMap.has(profId)) {
       horasMap.get(profId).horas_substituicao += Number(c.horas_aula || 1.5);
@@ -391,9 +425,90 @@ export async function calcularHorasPorProfessor({ inicio, fim } = {}) {
   });
 
   return Array.from(horasMap.values())
-    .map(p => ({
+    .map((p) => ({
       ...p,
       horas_total: p.horas_proprias + p.horas_substituicao,
     }))
     .sort((a, b) => b.horas_total - a.horas_total);
+}
+
+/* --------- NOVO: relatório mensal por professor --------- */
+
+export async function listarAulasProfesorMes(professorId, mesStr) {
+  const { inicio, fim } = getMesInicioFim(mesStr);
+
+  // Turmas que esse professor é titular
+  const { data: turmas, error: tErr } = await supabase
+    .from("turmas")
+    .select("id, nome")
+    .eq("professor_id", professorId);
+
+  if (tErr) throw tErr;
+
+  const turmaIds = (turmas || []).map((t) => t.id);
+  const turmaMapLocal = new Map((turmas || []).map((t) => [t.id, t.nome]));
+
+  let aulasPropriasList = [];
+
+  if (turmaIds.length) {
+    const { data: proprias, error: pErr } = await supabase
+      .from("chamadas")
+      .select(
+        "id, data, turma_id, horas_aula, foi_ministrada, professor_substituto_id, substituto_nome_manual"
+      )
+      .in("turma_id", turmaIds)
+      .eq("foi_ministrada", true)
+      .gte("data", inicio)
+      .lt("data", fim)
+      .order("data", { ascending: true });
+
+    if (pErr) throw pErr;
+
+    aulasPropriasList = (proprias || []).map((c) => ({
+      ...c,
+      turma_nome: turmaMapLocal.get(c.turma_id) || "-",
+      tipo: "propria",
+    }));
+  }
+
+  // Aulas em que ele foi substituto
+  const { data: subs, error: sErr } = await supabase
+    .from("chamadas")
+    .select(
+      "id, data, turma_id, horas_aula, foi_ministrada, professor_substituto_id, substituto_nome_manual, turmas(nome)"
+    )
+    .eq("professor_substituto_id", professorId)
+    .eq("foi_ministrada", false)
+    .gte("data", inicio)
+    .lt("data", fim)
+    .order("data", { ascending: true });
+
+  if (sErr) throw sErr;
+
+  const aulasSubsList = (subs || []).map((c) => ({
+    ...c,
+    turma_nome: c.turmas?.nome || turmaMapLocal.get(c.turma_id) || "-",
+    tipo: "substituicao",
+  }));
+
+  const todas = [...aulasPropriasList, ...aulasSubsList].sort((a, b) =>
+    a.data.localeCompare(b.data)
+  );
+
+  const horasProprias = aulasPropriasList.reduce(
+    (acc, c) => acc + Number(c.horas_aula || 1.5),
+    0
+  );
+
+  const horasSubstituicao = aulasSubsList.reduce(
+    (acc, c) => acc + Number(c.horas_aula || 1.5),
+    0
+  );
+
+  return {
+    aulas: todas,
+    horasTotal: horasProprias + horasSubstituicao,
+    horasProprias,
+    horasSubstituicao,
+  };
 }

@@ -7,7 +7,8 @@ import {
   adminRemoverEmailAutorizado,
   listarChamadasMes,
   formatarDataBR,
-  calcularHorasPorProfessor, // NOVO
+  calcularHorasPorProfessor,
+  listarAulasProfesorMes, // NOVO
 } from "./api.js";
 
 const adminState = {
@@ -66,6 +67,7 @@ export async function initAdminUI() {
   });
 
   initAdminTabs();
+  await initRelatorioProfTab();
 }
 
 /* ================== Abas do Painel Admin ================== */
@@ -88,23 +90,14 @@ function initAdminTabs() {
 }
 
 function ativarAbaAdmin(tab) {
-  const tabBtns = document.querySelectorAll(".admin-tab");
-  const contents = {
-    "visao-geral": document.getElementById("admin-tab-visao-geral"),
-    chamadas: document.getElementById("admin-tab-chamadas"),
-    professores: document.getElementById("admin-tab-professores"),
-    emails: document.getElementById("admin-tab-emails"),
-  };
-
-  tabBtns.forEach((b) => {
+  document.querySelectorAll(".admin-tab").forEach((b) => {
     b.classList.toggle("active", b.dataset.adminTab === tab);
   });
-
-  Object.entries(contents).forEach(([key, el]) => {
-    if (!el) return;
-    if (key === tab) el.classList.remove("hidden");
-    else el.classList.add("hidden");
+  document.querySelectorAll(".admin-tab-content").forEach((el) => {
+    el.classList.add("hidden");
   });
+  const activeContent = document.getElementById(`admin-tab-${tab}`);
+  if (activeContent) activeContent.classList.remove("hidden");
 }
 
 async function carregarDadosBaseAdmin() {
@@ -607,4 +600,179 @@ function renderEmailsAutorizados() {
       }
     });
   });
+}
+/* ================== Aba: Relatório por Professor (nova) ================== */
+
+let relatorioProfInicializado = false;
+
+async function initRelatorioProfTab() {
+  if (document.getElementById("admin-tab-relatorio-prof")) return;
+
+  // Adiciona botão de aba dinamicamente
+  const tabsEl = document.querySelector(".admin-tabs");
+  if (tabsEl && !tabsEl.querySelector('[data-admin-tab="relatorio-prof"]')) {
+    const btn = document.createElement("button");
+    btn.className = "admin-tab";
+    btn.dataset.adminTab = "relatorio-prof";
+    btn.textContent = "Relatório por Prof.";
+    tabsEl.appendChild(btn);
+    btn.addEventListener("click", async () => {
+      ativarAbaAdmin("relatorio-prof");
+      await carregarTabRelatorioProfAdmin();
+    });
+  }
+
+  // Cria seção de conteúdo
+  const section = document.createElement("section");
+  section.id = "admin-tab-relatorio-prof";
+  section.className = "admin-tab-content hidden";
+  section.innerHTML = `
+    <div class="card">
+      <div class="section-header">
+        <div>
+          <h3>Relatório Mensal por Professor</h3>
+          <p class="help-text">Veja as aulas ministradas, substituições e horas de cada professor.</p>
+        </div>
+      </div>
+      <div class="admin-filters">
+        <div class="field-group">
+          <label for="relProfSelect">Professor</label>
+          <select id="relProfSelect">
+            <option value="">Selecione...</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="relProfMes">Mês</label>
+          <input type="month" id="relProfMes">
+        </div>
+        <button id="relProfGerarBtn" class="btn btn-primary">Gerar</button>
+      </div>
+
+      <div id="relProfSummary" class="hidden" style="margin-bottom:1rem;">
+        <div class="relatorio-summary-cards" id="relProfSummaryCards"></div>
+      </div>
+
+      <div class="schedule-table-wrapper">
+        <table class="schedule-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Turma</th>
+              <th>Tipo</th>
+              <th>Horas</th>
+            </tr>
+          </thead>
+          <tbody id="relProfTableBody">
+            <tr><td colspan="4" style="color:#6b7280;">Selecione um professor e clique em Gerar.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p id="relProfStatus" class="status-message"></p>
+    </div>
+  `;
+
+  const emailsTab = document.getElementById("admin-tab-emails");
+  if (emailsTab) emailsTab.after(section);
+  else document.getElementById("admin-view")?.appendChild(section);
+}
+
+async function carregarTabRelatorioProfAdmin() {
+  await carregarDadosBaseAdmin();
+  if (relatorioProfInicializado) return;
+  relatorioProfInicializado = true;
+
+  const select = document.getElementById("relProfSelect");
+  if (select) {
+    select.innerHTML = '<option value="">Selecione...</option>';
+    adminState.professores.forEach((p) => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.nome || p.email;
+      select.appendChild(opt);
+    });
+  }
+
+  const mesInput = document.getElementById("relProfMes");
+  if (mesInput && !mesInput.value) {
+    const hoje = new Date();
+    mesInput.value = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  document.getElementById("relProfGerarBtn")?.addEventListener("click", gerarRelatorioProf);
+}
+
+async function gerarRelatorioProf() {
+  const profId   = document.getElementById("relProfSelect")?.value;
+  const mes      = document.getElementById("relProfMes")?.value;
+  const tbody    = document.getElementById("relProfTableBody");
+  const summary  = document.getElementById("relProfSummary");
+  const cards    = document.getElementById("relProfSummaryCards");
+  const statusEl = document.getElementById("relProfStatus");
+
+  if (!tbody) return;
+
+  if (!profId || !mes) {
+    if (statusEl) { statusEl.style.color = "#e53935"; statusEl.textContent = "Selecione um professor e um mês."; }
+    return;
+  }
+
+  tbody.innerHTML = "<tr><td colspan='4'>Carregando...</td></tr>";
+  summary?.classList.add("hidden");
+  if (statusEl) statusEl.textContent = "";
+
+  try {
+    const { aulas, horasTotal, horasProprias, horasSubstituicao } = await listarAulasProfesorMes(profId, mes);
+
+    const qtdProprias = aulas.filter((a) => a.tipo === "propria").length;
+    const qtdSubs     = aulas.filter((a) => a.tipo === "substituicao").length;
+
+    if (cards) {
+      cards.innerHTML = `
+        <div class="summary-card">
+          <div class="summary-card-label">Aulas próprias</div>
+          <div class="summary-card-value">${qtdProprias}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-label">Como substituto</div>
+          <div class="summary-card-value">${qtdSubs}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-label">H. próprias</div>
+          <div class="summary-card-value">${horasProprias.toFixed(1)}h</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-label">H. substituição</div>
+          <div class="summary-card-value">${horasSubstituicao.toFixed(1)}h</div>
+        </div>
+        <div class="summary-card summary-card--total">
+          <div class="summary-card-label">Total de horas</div>
+          <div class="summary-card-value">${horasTotal.toFixed(1)}h</div>
+        </div>
+      `;
+    }
+    summary?.classList.remove("hidden");
+
+    tbody.innerHTML = "";
+    if (!aulas.length) {
+      tbody.innerHTML = "<tr><td colspan='4' style='color:#6b7280;'>Nenhuma aula registrada neste período.</td></tr>";
+      return;
+    }
+
+    aulas.forEach((aula) => {
+      const tipoBadge = aula.tipo === "propria"
+        ? '<span class="badge-status status-presente">Própria</span>'
+        : '<span class="badge-status status-na">Substituto</span>';
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${formatarDataBR(aula.data)}</td>
+        <td>${aula.turma_nome}</td>
+        <td>${tipoBadge}</td>
+        <td>${Number(aula.horas_aula || 1.5).toFixed(1)}h</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (err) {
+    if (statusEl) { statusEl.style.color = "#e53935"; statusEl.textContent = err.message || "Erro ao gerar relatório."; }
+    tbody.innerHTML = "<tr><td colspan='4'>Erro ao carregar dados.</td></tr>";
+  }
 }

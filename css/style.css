@@ -2375,3 +2375,90 @@ textarea {
 .ministrada-info--ok   { color: #15803d !important; }
 .ministrada-info--warn { color: #b45309 !important; }
 .ministrada-info--err  { color: #b91c1c !important; }
+
+
+/* ===========================
+   Novos estados do calendário
+   =========================== */
+.calendar-substituted {
+  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+  border: 3px solid #7c3aed !important;
+  color: #5b21b6;
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.3);
+  position: relative;
+}
+.calendar-substituted .calendar-day-status { color: #7c3aed; font-weight: 900; }
+.calendar-substituted::before {
+  content: '';
+  position: absolute; top: 2px; right: 2px;
+  width: 8px; height: 8px;
+  background: #7c3aed; border-radius: 50%;
+}
+
+.calendar-cancelled {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  border: 3px solid #6b7280 !important;
+  color: #374151;
+  position: relative;
+}
+.calendar-cancelled .calendar-day-status { color: #6b7280; font-weight: 900; }
+
+.legend-color.calendar-substituted {
+  background: #ede9fe; border-color: #7c3aed; color: #7c3aed;
+}
+.legend-color.calendar-cancelled {
+  background: #f3f4f6; border-color: #6b7280; color: #6b7280;
+}
+
+/* ===========================
+   Cards de resumo mensal
+   =========================== */
+.relatorio-summary-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.summary-card {
+  flex: 1 1 100px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  text-align: center;
+  min-width: 90px;
+}
+
+.summary-card--total {
+  background: #eff6ff;
+  border-color: #1565c0;
+}
+
+.summary-card-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.summary-card-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #1f2933;
+}
+
+.summary-card--total .summary-card-value {
+  color: #1565c0;
+}
+
+/* Nome do substituto nos relatórios */
+.substituicao-nome {
+  color: #6d28d9;
+  font-weight: 500;
+}
+
+@media (max-width: 480px) {
+  .relatorio-summary-cards { gap: 0.5rem; }
+  .summary-card { min-width: 70px; padding: 0.6rem; }
+  .summary-card-value { font-size: 1.1rem; }
+}

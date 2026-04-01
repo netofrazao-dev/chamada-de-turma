@@ -24,10 +24,28 @@ export const uiState = {
   isAdmin: false,
   adminProfessores: [],
   adminProfessorSelecionado: null,
-  todosProfessores: [], // NOVO: cache para o select de substituto
+  todosProfessores: [], // cache de todos os professores
 };
 
-// ⬇️ controle simples de qual "tela" está ativa para evitar race condition
+// Helper: nome do professor pelo ID
+function getNomeProfessor(professorId, lista) {
+  if (!professorId || !lista?.length) return null;
+  const p = lista.find((x) => String(x.id) === String(professorId));
+  return p ? (p.nome || p.email) : null;
+}
+
+// Helper: garante que a lista de professores está carregada no cache
+async function ensureProfessoresCarregados() {
+  if (!uiState.todosProfessores.length) {
+    try {
+      uiState.todosProfessores = await adminListarProfessores();
+    } catch {
+      uiState.todosProfessores = [];
+    }
+  }
+}
+
+// controle simples de qual "tela" está ativa para evitar race condition
 let currentView = null;
 
 const nomesDiasSemana = [
@@ -593,22 +611,37 @@ async function renderTabAlunos() {
   }
 }
 
-// NOVA: monta e insere a seção "Ministrada?" antes da lista de alunos
+/* ============ Seção "Aula ministrada / substituto" ============ */
+
+function atualizarInfoHoras(foiMinistrada, substitutoId, nomeManual) {
+  const el = document.getElementById("horasInfo");
+  if (!el) return;
+  el.className = "help-text ministrada-info";
+
+  if (foiMinistrada) {
+    el.classList.add("ministrada-info--ok");
+    el.textContent = "✓ Esta aula valerá 1.5h para você.";
+  } else if (substitutoId) {
+    el.classList.add("ministrada-info--warn");
+    el.textContent =
+      "⚠ Você não ministrou. As 1.5h vão para o professor substituto do sistema.";
+  } else if (nomeManual) {
+    el.classList.add("ministrada-info--warn");
+    el.textContent = `⚠ Aula ministrada por "${nomeManual}" (externo). Não contabilizada no sistema.`;
+  } else {
+    el.classList.add("ministrada-info--err");
+    el.textContent =
+      "✗ Aula não realizada. Nenhuma hora será contabilizada.";
+  }
+}
+
 async function initMinistradaSection() {
   const lista = document.getElementById("listaAlunosChamada");
   if (!lista) return;
 
-  // Remove seção anterior se existir
+  // Remove se já existir (para não duplicar ao trocar a data)
   document.getElementById("aula-ministrada-section")?.remove();
-
-  // Carrega professores uma vez e faz cache
-  if (!uiState.todosProfessores.length) {
-    try {
-      uiState.todosProfessores = await adminListarProfessores();
-    } catch {
-      uiState.todosProfessores = [];
-    }
-  }
+  await ensureProfessoresCarregados();
 
   const section = document.createElement("div");
   section.id = "aula-ministrada-section";
@@ -623,10 +656,20 @@ async function initMinistradaSection() {
         <label for="professorSubstitutoSelect">Professor substituto</label>
         <select id="professorSubstitutoSelect">
           <option value="">Nenhum (aula não aconteceu)</option>
-          ${uiState.todosProfessores.map(p =>
-            `<option value="${p.id}">${p.nome || p.email}</option>`
-          ).join("")}
+          ${uiState.todosProfessores
+            .map(
+              (p) =>
+                `<option value="${p.id}">${p.nome || p.email}</option>`
+            )
+            .join("")}
+          <option value="outro">Outro (qual?)</option>
         </select>
+      </div>
+      <div id="substitutoNomeManualContainer" class="hidden" style="margin-top:0.5rem;">
+        <div class="field-group">
+          <label for="substitutoNomeManualInput">Nome do substituto externo</label>
+          <input type="text" id="substitutoNomeManualInput" placeholder="Nome completo do professor substituto">
+        </div>
       </div>
     </div>
     <p id="horasInfo" class="help-text ministrada-info ministrada-info--ok">
@@ -636,47 +679,49 @@ async function initMinistradaSection() {
 
   lista.parentNode.insertBefore(section, lista);
 
-  const check   = section.querySelector("#foiMinistradaCheck");
+  const check = section.querySelector("#foiMinistradaCheck");
   const subCont = section.querySelector("#substitutoContainer");
-  const subSel  = section.querySelector("#professorSubstitutoSelect");
+  const subSel = section.querySelector("#professorSubstitutoSelect");
+  const nomeManualCont = section.querySelector(
+    "#substitutoNomeManualContainer"
+  );
+  const nomeManualInp = section.querySelector("#substitutoNomeManualInput");
+
+  const sync = () => {
+    const isOutro = subSel.value === "outro";
+    nomeManualCont.classList.toggle("hidden", !isOutro);
+    if (!isOutro) nomeManualInp.value = "";
+    atualizarInfoHoras(
+      check.checked,
+      !check.checked && !isOutro ? subSel.value || null : null,
+      !check.checked && isOutro
+        ? nomeManualInp.value.trim() || null
+        : null
+    );
+  };
 
   check.addEventListener("change", () => {
     subCont.classList.toggle("hidden", check.checked);
-    atualizarInfoHoras(check.checked, subSel?.value || null);
+    if (check.checked) {
+      nomeManualCont.classList.add("hidden");
+      nomeManualInp.value = "";
+      subSel.value = "";
+    }
+    sync();
   });
-
-  subSel?.addEventListener("change", () => {
-    atualizarInfoHoras(check.checked, subSel.value || null);
-  });
+  subSel.addEventListener("change", sync);
+  nomeManualInp.addEventListener("input", sync);
 }
-
-// NOVA: atualiza o texto informativo de horas
-function atualizarInfoHoras(foiMinistrada, substitutoId) {
-  const el = document.getElementById("horasInfo");
-  if (!el) return;
-  el.className = "help-text ministrada-info";
-
-  if (foiMinistrada) {
-    el.classList.add("ministrada-info--ok");
-    el.textContent = "✓ Esta aula valerá 1.5h para você.";
-  } else if (substitutoId) {
-    el.classList.add("ministrada-info--warn");
-    el.textContent = "⚠ Você não ministrou. As 1.5h vão para o professor substituto.";
-  } else {
-    el.classList.add("ministrada-info--err");
-    el.textContent = "✗ Sem substituto. Nenhuma hora será contabilizada.";
-  }
-}
-
 
 /* ================== Tab CHAMADA ================== */
+
 async function renderTabChamada() {
   const viewId = currentView;
 
-  const lista    = document.getElementById("listaAlunosChamada");
+  const lista = document.getElementById("listaAlunosChamada");
   const dataInput = document.getElementById("dataChamada");
   const salvarBtn = document.getElementById("salvarChamadaBtn");
-  const statusEl  = document.getElementById("mensagemStatus");
+  const statusEl = document.getElementById("mensagemStatus");
 
   if (!lista || !uiState.turmaAtual) return;
 
@@ -693,7 +738,8 @@ async function renderTabChamada() {
   await initMinistradaSection();
 
   if (!uiState.alunosTurmaAtual.length) {
-    lista.innerHTML = "<p class='help-text'>Cadastre alunos na aba Alunos antes de fazer a chamada.</p>";
+    lista.innerHTML =
+      "<p class='help-text'>Cadastre alunos na aba Alunos antes de fazer a chamada.</p>";
     if (salvarBtn) salvarBtn.disabled = true;
     return;
   }
@@ -714,7 +760,7 @@ async function renderTabChamada() {
     `;
 
     const btnPresente = row.querySelector(".btn-presenca.present");
-    const btnAusente  = row.querySelector(".btn-presenca.absent");
+    const btnAusente = row.querySelector(".btn-presenca.absent");
 
     btnPresente.addEventListener("click", () => {
       uiState.presencas.set(aluno.id, true);
@@ -750,24 +796,45 @@ async function renderTabChamada() {
           .filter((a) => uiState.presencas.get(a.id) === true)
           .map((a) => a.id);
 
-        // Lê os novos campos do DOM
-        const foiMinistradaCheck       = document.getElementById("foiMinistradaCheck");
-        const professorSubstitutoSelect = document.getElementById("professorSubstitutoSelect");
-        const foiMinistrada       = foiMinistradaCheck ? foiMinistradaCheck.checked : true;
-        const professorSubstitutoId = (!foiMinistrada && professorSubstitutoSelect?.value)
-          ? professorSubstitutoSelect.value
-          : null;
+        const foiMinistradaCheck =
+          document.getElementById("foiMinistradaCheck");
+        const professorSubstitutoSelect = document.getElementById(
+          "professorSubstitutoSelect"
+        );
+        const substitutoNomeManualInput = document.getElementById(
+          "substitutoNomeManualInput"
+        );
+
+        const foiMinistrada = foiMinistradaCheck
+          ? foiMinistradaCheck.checked
+          : true;
+        let professorSubstitutoId = null;
+        let substitutoNomeManual = null;
+
+        if (!foiMinistrada && professorSubstitutoSelect) {
+          const val = professorSubstitutoSelect.value;
+          if (val === "outro") {
+            substitutoNomeManual =
+              substitutoNomeManualInput?.value.trim() || null;
+          } else if (val) {
+            professorSubstitutoId = val;
+          }
+        }
 
         await salvarChamada(
           uiState.turmaAtual.id,
           dataInput.value,
           presentesIds,
           uiState.alunosTurmaAtual,
-          { foiMinistrada, professorSubstitutoId }
+          { foiMinistrada, professorSubstitutoId, substitutoNomeManual }
         );
         setStatus(statusEl, "Chamada salva com sucesso.");
       } catch (err) {
-        setStatus(statusEl, err.message || "Erro ao salvar chamada.", true);
+        setStatus(
+          statusEl,
+          err.message || "Erro ao salvar chamada.",
+          true
+        );
       }
     });
   }
@@ -780,44 +847,72 @@ async function carregarChamadaParaData(dataStr) {
   const chamada = await obterChamadaPorData(uiState.turmaAtual.id, dataStr);
   if (currentView !== viewId) return;
 
-  // Pré-popular foi_ministrada e substituto
-  const foiMinistradaCheck        = document.getElementById("foiMinistradaCheck");
-  const subContainer              = document.getElementById("substitutoContainer");
-  const professorSubstitutoSelect = document.getElementById("professorSubstitutoSelect");
+  const foiMinistradaCheck = document.getElementById("foiMinistradaCheck");
+  const subContainer = document.getElementById("substitutoContainer");
+  const professorSubstitutoSelect = document.getElementById(
+    "professorSubstitutoSelect"
+  );
+  const nomeManualContainer = document.getElementById(
+    "substitutoNomeManualContainer"
+  );
+  const nomeManualInput = document.getElementById(
+    "substitutoNomeManualInput"
+  );
 
   if (foiMinistradaCheck) {
-    const foiMinistrada = chamada ? (chamada.foi_ministrada !== false) : true;
+    const foiMinistrada = chamada
+      ? chamada.foi_ministrada !== false
+      : true;
     foiMinistradaCheck.checked = foiMinistrada;
 
     if (!foiMinistrada) {
       subContainer?.classList.remove("hidden");
-      if (professorSubstitutoSelect) {
-        professorSubstitutoSelect.value = chamada?.professor_substituto_id || "";
+      if (chamada?.substituto_nome_manual) {
+        if (professorSubstitutoSelect)
+          professorSubstitutoSelect.value = "outro";
+        nomeManualContainer?.classList.remove("hidden");
+        if (nomeManualInput)
+          nomeManualInput.value = chamada.substituto_nome_manual;
+      } else if (chamada?.professor_substituto_id) {
+        if (professorSubstitutoSelect)
+          professorSubstitutoSelect.value =
+            chamada.professor_substituto_id;
+        nomeManualContainer?.classList.add("hidden");
+        if (nomeManualInput) nomeManualInput.value = "";
+      } else {
+        if (professorSubstitutoSelect)
+          professorSubstitutoSelect.value = "";
+        nomeManualContainer?.classList.add("hidden");
+        if (nomeManualInput) nomeManualInput.value = "";
       }
     } else {
       subContainer?.classList.add("hidden");
+      nomeManualContainer?.classList.add("hidden");
       if (professorSubstitutoSelect) professorSubstitutoSelect.value = "";
+      if (nomeManualInput) nomeManualInput.value = "";
     }
 
-    atualizarInfoHoras(foiMinistrada, chamada?.professor_substituto_id || null);
+    atualizarInfoHoras(
+      foiMinistrada,
+      chamada?.professor_substituto_id || null,
+      chamada?.substituto_nome_manual || null
+    );
   }
 
   // Presenças (lógica original)
   uiState.presencas = new Map();
-  const rows = document.querySelectorAll(".chamada-row");
-  rows.forEach((row) => {
+  document.querySelectorAll(".chamada-row").forEach((row) => {
     const alunoId = row.dataset.alunoId;
     const btnP = row.querySelector(".btn-presenca.present");
     const btnA = row.querySelector(".btn-presenca.absent");
     if (!btnP || !btnA) return;
     btnP.classList.remove("selected");
     btnA.classList.remove("selected");
-
     if (!chamada) return;
-
-    const reg = chamada.chamada_presencas?.find((p) => p.aluno_id === alunoId);
+    const reg = chamada.chamada_presencas?.find(
+      (p) => String(p.aluno_id) === String(alunoId)
+    );
     if (!reg) return;
-
     uiState.presencas.set(alunoId, !!reg.presente);
     if (reg.presente) btnP.classList.add("selected");
     else btnA.classList.add("selected");
@@ -828,21 +923,23 @@ async function carregarChamadaParaData(dataStr) {
 
 async function renderTabRelatorios() {
   if (!uiState.turmaAtual) return;
-
   const viewId = currentView;
 
-  const mesInput = document.getElementById("mesRelatorio");
-  const tbody = document.getElementById("relatorioMensalBody");
+  await ensureProfessoresCarregados();
 
+  const mesInput = document.getElementById("mesRelatorio");
   if (mesInput && !mesInput.value) {
     const hoje = new Date();
-    const ano = hoje.getFullYear();
-    const mes = String(hoje.getMonth() + 1).padStart(2, "0");
-    mesInput.value = `${ano}-${mes}`;
+    mesInput.value = `${hoje.getFullYear()}-${String(
+      hoje.getMonth() + 1
+    ).padStart(2, "0")}`;
   }
 
   async function atualizarTudo() {
     if (!mesInput.value) return;
+    document.getElementById("resumo-mes-card")?.remove();
+    await renderResumoMes(mesInput.value);
+    if (currentView !== viewId) return;
     await atualizarTabelaRelatorio(mesInput.value);
     if (currentView !== viewId) return;
     await renderCalendario(mesInput.value);
@@ -853,6 +950,7 @@ async function renderTabRelatorios() {
     mesInput.addEventListener("change", atualizarTudo);
   }
 
+  const tbody = document.getElementById("relatorioMensalBody");
   if (tbody) tbody.innerHTML = "";
   await atualizarTudo();
 
@@ -913,7 +1011,7 @@ async function atualizarTabelaRelatorio(mes) {
 
     chamadasValidas.forEach((ch) => {
       const reg = ch.chamada_presencas?.find(
-        (p) => p.aluno_id === aluno.id
+        (p) => String(p.aluno_id) === String(aluno.id)
       );
       if (reg?.presente) presencas++;
       // se não houver registro para este aluno nessa chamada válida,
@@ -940,12 +1038,10 @@ async function atualizarTabelaRelatorio(mes) {
 
 async function renderCalendario(mes) {
   const viewId = currentView;
-
   const container = document.getElementById("calendarioContainer");
   if (!container || !uiState.turmaAtual) return;
 
   const turmaId = uiState.turmaAtual.id;
-
   const [anoStr, mesStr] = mes.split("-");
   const ano = parseInt(anoStr, 10);
   const mesIndex = parseInt(mesStr, 10) - 1;
@@ -970,15 +1066,13 @@ async function renderCalendario(mes) {
   const diasGrid = document.createElement("div");
   diasGrid.className = "calendar-grid-novo";
 
-  const diasSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
-  diasSemana.forEach((dia) => {
-    const header = document.createElement("div");
-    header.className = "calendar-header-day";
-    header.textContent = dia;
-    diasGrid.appendChild(header);
+  ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].forEach((dia) => {
+    const h = document.createElement("div");
+    h.className = "calendar-header-day";
+    h.textContent = dia;
+    diasGrid.appendChild(h);
   });
 
-  // Espaços vazios antes do primeiro dia
   for (let i = 0; i < diaSemanaPrimeiro; i++) {
     const empty = document.createElement("div");
     empty.className = "calendar-day-empty";
@@ -990,63 +1084,77 @@ async function renderCalendario(mes) {
       2,
       "0"
     )}-${String(diaAtual).padStart(2, "0")}`;
-    const isHoje = dataStr === dataHoje;
-
     const dayDiv = document.createElement("div");
     dayDiv.className = "calendar-day-novo";
-    if (isHoje) dayDiv.classList.add("calendar-today");
+    if (dataStr === dataHoje) dayDiv.classList.add("calendar-today");
 
     const registro = mapaChamadas.get(dataStr);
 
     if (registro) {
-      // Só conta alunos que já "existiam" nessa data (data_entrada <= data)
-      const alunosNoDia = alunos.filter((aluno) => {
-        const dataEntrada = aluno.data_entrada || "0000-00-00";
-        return dataEntrada <= dataStr;
-      });
-      const idsAlunosNoDia = new Set(alunosNoDia.map((a) => a.id));
-      const totalAlunosDia = alunosNoDia.length;
+      const foiMinistrada = registro.foi_ministrada !== false;
+      const temSubstSistema =
+        !foiMinistrada && !!registro.professor_substituto_id;
+      const temSubstManual =
+        !foiMinistrada && !!registro.substituto_nome_manual;
+      const temSubstituto = temSubstSistema || temSubstManual;
+      const aulaCancelada = !foiMinistrada && !temSubstituto;
 
-      const presencasValidas =
-        registro.chamada_presencas?.filter((p) =>
-          idsAlunosNoDia.has(p.aluno_id)
-        ) ?? [];
+      let statusClass, statusIcon, statusTitle;
 
-      const totalReg = presencasValidas.length;
-      const presentes = presencasValidas.filter((p) => p.presente).length;
-      const ausentes = totalReg - presentes;
-
-      let statusClass = "calendar-no-class";
-      let statusIcon = "";
-      let statusTitle = "Sem alunos na turma nesta data.";
-
-      if (totalAlunosDia === 0) {
-        // não havia alunos "válidos" nessa data => não faz sentido falar em chamada parcial/completa
-        statusClass = "calendar-no-class";
-        statusIcon = "";
-        statusTitle = "Sem alunos na turma nesta data.";
-      } else if (totalReg === 0) {
-        statusClass = "calendar-no-call";
-        statusIcon = "⚠️";
-        statusTitle = "Sem chamada";
-      } else if (totalReg >= totalAlunosDia) {
-        statusClass = "calendar-complete";
-        statusIcon = "✓";
-        statusTitle = "Chamada completa";
+      if (aulaCancelada) {
+        statusClass = "calendar-cancelled";
+        statusIcon = "✗";
+        statusTitle = "Aula não realizada";
+      } else if (!foiMinistrada && temSubstituto) {
+        statusClass = "calendar-substituted";
+        statusIcon = "🔄";
+        const nomeSubst = registro.substituto_nome_manual
+          ? `${registro.substituto_nome_manual} (externo)`
+          : getNomeProfessor(
+              registro.professor_substituto_id,
+              uiState.todosProfessores
+            ) || "Professor substituto";
+        statusTitle = `Substituição: ${nomeSubst}`;
       } else {
-        statusClass = "calendar-partial";
-        statusIcon = "◐";
-        statusTitle = "Chamada parcial";
+        // Aula normal → lógica de presença
+        const alunosNoDia = alunos.filter(
+          (a) => (a.data_entrada || "0000-00-00") <= dataStr
+        );
+        const idsNoDia = new Set(alunosNoDia.map((a) => a.id));
+        const totalAlunos = alunosNoDia.length;
+        const presValidas = (registro.chamada_presencas || []).filter((p) =>
+          idsNoDia.has(p.aluno_id)
+        );
+        const presentes = presValidas.filter((p) => p.presente).length;
+        const ausentes = presValidas.length - presentes;
+
+        dayDiv.dataset.presentes = presentes;
+        dayDiv.dataset.ausentes = ausentes;
+        dayDiv.dataset.total = totalAlunos;
+
+        if (totalAlunos === 0) {
+          statusClass = "calendar-no-class";
+          statusIcon = "";
+          statusTitle = "Sem alunos nesta data.";
+        } else if (presValidas.length === 0) {
+          statusClass = "calendar-no-call";
+          statusIcon = "⚠️";
+          statusTitle = "Sem chamada";
+        } else if (presValidas.length >= totalAlunos) {
+          statusClass = "calendar-complete";
+          statusIcon = "✓";
+          statusTitle = "Chamada completa";
+        } else {
+          statusClass = "calendar-partial";
+          statusIcon = "◐";
+          statusTitle = "Chamada parcial";
+        }
       }
 
       dayDiv.classList.add(statusClass);
       dayDiv.dataset.data = dataStr;
-      dayDiv.dataset.presentes = presentes;
-      dayDiv.dataset.ausentes = ausentes;
-      dayDiv.dataset.total = totalAlunosDia;
       dayDiv.dataset.temChamada = "true";
       dayDiv.title = statusTitle;
-
       dayDiv.innerHTML = `
         <div class="calendar-day-number-novo">${diaAtual}</div>
         <div class="calendar-day-status">${statusIcon}</div>
@@ -1056,12 +1164,10 @@ async function renderCalendario(mes) {
             : ""
         }
       `;
-
-dayDiv.addEventListener("click", () => {
-  mostrarDetalhesCalendario(dataStr, mes);
-});
-
       dayDiv.style.cursor = "pointer";
+      dayDiv.addEventListener("click", () =>
+        mostrarDetalhesCalendario(dataStr, mes)
+      );
     } else {
       dayDiv.classList.add("calendar-no-class");
       dayDiv.innerHTML = `<div class="calendar-day-number-novo">${diaAtual}</div>`;
@@ -1071,28 +1177,17 @@ dayDiv.addEventListener("click", () => {
     diasGrid.appendChild(dayDiv);
   }
 
-  // Legenda permanece a mesma
   const legenda = document.createElement("div");
   legenda.className = "calendar-legend-novo";
   legenda.innerHTML = `
     <div class="legend-title">Legenda</div>
     <div class="legend-items">
-      <div class="legend-item">
-        <div class="legend-color calendar-complete">✓</div>
-        <span>Chamada Completa</span>
-      </div>
-      <div class="legend-item">
-        <div class="legend-color calendar-partial">◐</div>
-        <span>Chamada Parcial</span>
-      </div>
-      <div class="legend-item">
-        <div class="legend-color calendar-no-call">⚠️</div>
-        <span>Sem Chamada</span>
-      </div>
-      <div class="legend-item">
-        <div class="legend-color calendar-no-class"></div>
-        <span>Sem Aula</span>
-      </div>
+      <div class="legend-item"><div class="legend-color calendar-complete">✓</div><span>Chamada Completa</span></div>
+      <div class="legend-item"><div class="legend-color calendar-partial">◐</div><span>Chamada Parcial</span></div>
+      <div class="legend-item"><div class="legend-color calendar-no-call">⚠️</div><span>Sem Chamada</span></div>
+      <div class="legend-item"><div class="legend-color calendar-substituted">🔄</div><span>Substituição</span></div>
+      <div class="legend-item"><div class="legend-color calendar-cancelled">✗</div><span>Não Realizada</span></div>
+      <div class="legend-item"><div class="legend-color calendar-no-class"></div><span>Sem Aula</span></div>
     </div>
   `;
 
@@ -1113,15 +1208,14 @@ async function mostrarDetalhesCalendario(data, mesAtual) {
 
   // Se não tiver chamada, exibe mensagem amigável
   if (!chamada) {
-    const dataFormatadaSem = new Date(data + "T00:00:00").toLocaleDateString(
-      "pt-BR",
-      {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }
-    );
+    const dataFormatadaSem = new Date(
+      data + "T00:00:00"
+    ).toLocaleDateString("pt-BR", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
 
     modal.innerHTML = `
       <div class="modal-content">
@@ -1139,6 +1233,36 @@ async function mostrarDetalhesCalendario(data, mesAtual) {
       if (e.target === modal) modal.classList.add("hidden");
     };
     return;
+  }
+
+  // Informações de substituição / status da aula
+  const foiMinistrada = chamada.foi_ministrada !== false;
+  let substituicaoInfoHtml = "";
+  let statusAulaHtml = "";
+
+  if (foiMinistrada) {
+    statusAulaHtml =
+      '<span style="color:#22c55e;">✓ Ministrada pelo professor da turma</span>';
+  } else if (
+    chamada.professor_substituto_id ||
+    chamada.substituto_nome_manual
+  ) {
+    const nomeSubst = chamada.substituto_nome_manual
+      ? `${chamada.substituto_nome_manual} (externo)`
+      : getNomeProfessor(
+          chamada.professor_substituto_id,
+          uiState.todosProfessores
+        ) || "Professor do sistema";
+    statusAulaHtml = `<span style="color:#6d28d9;">🔄 Substituição por ${nomeSubst}</span>`;
+    substituicaoInfoHtml = `
+      <div class="detail-row">
+        <span class="detail-label">Substituto:</span>
+        <span class="detail-value" style="color:#6d28d9;">${nomeSubst}</span>
+      </div>
+    `;
+  } else {
+    statusAulaHtml =
+      '<span style="color:#ef4444;">✗ Aula não realizada</span>';
   }
 
   const presencas = chamada.chamada_presencas || [];
@@ -1218,15 +1342,14 @@ async function mostrarDetalhesCalendario(data, mesAtual) {
       ? ((presentes / totalConsideradosNoDia) * 100).toFixed(1)
       : "0.0";
 
-  const dataFormatada = new Date(data + "T00:00:00").toLocaleDateString(
-    "pt-BR",
-    {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    }
-  );
+  const dataFormatada = new Date(
+    data + "T00:00:00"
+  ).toLocaleDateString("pt-BR", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
   modal.innerHTML = `
     <div class="modal-content">
@@ -1243,6 +1366,11 @@ async function mostrarDetalhesCalendario(data, mesAtual) {
           <span class="detail-label">Turma:</span>
           <span class="detail-value">${uiState.turmaAtual.nome}</span>
         </div>
+        <div class="detail-row">
+          <span class="detail-label">Status da aula:</span>
+          <span class="detail-value">${statusAulaHtml}</span>
+        </div>
+        ${substituicaoInfoHtml}
         <div class="detail-row">
           <span class="detail-label">Status da chamada:</span>
           <span class="detail-value detail-status">${statusChamada}</span>
@@ -1303,7 +1431,7 @@ async function mostrarDetalhesCalendario(data, mesAtual) {
     if (e.target === modal) modal.classList.add("hidden");
   };
 
-  // Remoção de chamada (já existia antes, preservado)
+  // Remoção de chamada
   const btnRemover = document.getElementById("btnRemoverChamada");
   if (btnRemover) {
     btnRemover.addEventListener("click", async () => {
@@ -1379,7 +1507,7 @@ async function exportarPdfRelatorio() {
         // só considera a partir da data de entrada na turma
         if (!dataEntrada || dataStr >= dataEntrada) {
           const presenca = chamadaDoDia.chamada_presencas.find(
-            (p) => p.aluno_id === aluno.id
+            (p) => String(p.aluno_id) === String(aluno.id)
           );
           if (!presenca) {
             status = "Ainda não era aluno nesse momento";
@@ -1472,4 +1600,105 @@ async function exportarPdfRelatorio() {
 
 export function setPerfilAtual({ isAdmin }) {
   uiState.isAdmin = !!isAdmin;
+}
+
+/* ============ Resumo mensal por turma (relatórios) ============ */
+
+async function renderResumoMes(mes) {
+  const viewId = currentView;
+  if (!uiState.turmaAtual) return;
+
+  document.getElementById("resumo-mes-card")?.remove();
+
+  const chamadas = await listarChamadasMes(uiState.turmaAtual.id, mes);
+  if (currentView !== viewId) return;
+
+  const totalAulas = chamadas.length;
+  const aulasMinistradas = chamadas.filter(
+    (c) => c.foi_ministrada !== false
+  ).length;
+  const aulasSubstituidas = chamadas.filter(
+    (c) =>
+      c.foi_ministrada === false &&
+      (c.professor_substituto_id || c.substituto_nome_manual)
+  ).length;
+  const aulasNaoRealizadas = chamadas.filter(
+    (c) =>
+      c.foi_ministrada === false &&
+      !c.professor_substituto_id &&
+      !c.substituto_nome_manual
+  ).length;
+  const horasTotal = chamadas
+    .filter(
+      (c) =>
+        c.foi_ministrada !== false ||
+        c.professor_substituto_id ||
+        c.substituto_nome_manual
+    )
+    .reduce((acc, c) => acc + Number(c.horas_aula || 1.5), 0);
+
+  let substituicoesHtml = "";
+  if (aulasSubstituidas > 0) {
+    const linhas = chamadas
+      .filter(
+        (c) =>
+          c.foi_ministrada === false &&
+          (c.professor_substituto_id || c.substituto_nome_manual)
+      )
+      .map((c) => {
+        const nome = c.substituto_nome_manual
+          ? `${c.substituto_nome_manual} <em>(externo)</em>`
+          : getNomeProfessor(
+              c.professor_substituto_id,
+              uiState.todosProfessores
+            ) || "Professor do sistema";
+        return `<li style="padding:0.25rem 0;">${formatarDataBR(
+          c.data
+        )}: <span class="substituicao-nome">${nome}</span></li>`;
+      })
+      .join("");
+
+    substituicoesHtml = `
+      <div style="margin-top:0.75rem;">
+        <strong style="font-size:0.9rem;">Substituições no mês:</strong>
+        <ul style="list-style:none;padding:0;margin:0.4rem 0 0;">${linhas}</ul>
+      </div>
+    `;
+  }
+
+  const card = document.createElement("div");
+  card.id = "resumo-mes-card";
+  card.className = "card";
+  card.innerHTML = `
+    <h3 style="margin-bottom:0.75rem;">Resumo do Mês</h3>
+    <div class="relatorio-summary-cards">
+      <div class="summary-card">
+        <div class="summary-card-label">Total de aulas</div>
+        <div class="summary-card-value">${totalAulas}</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-label">Ministradas</div>
+        <div class="summary-card-value" style="color:#15803d;">${aulasMinistradas}</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-label">Substituídas</div>
+        <div class="summary-card-value" style="color:#6d28d9;">${aulasSubstituidas}</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-label">Não realizadas</div>
+        <div class="summary-card-value" style="color:#b91c1c;">${aulasNaoRealizadas}</div>
+      </div>
+      <div class="summary-card summary-card--total">
+        <div class="summary-card-label">Total de horas</div>
+        <div class="summary-card-value">${horasTotal.toFixed(
+          1
+        )}h</div>
+      </div>
+    </div>
+    ${substituicoesHtml}
+  `;
+
+  const tabRelatorios = document.getElementById("tab-relatorios");
+  const firstCard = tabRelatorios?.querySelector(".card");
+  if (firstCard) firstCard.parentNode.insertBefore(card, firstCard);
 }
