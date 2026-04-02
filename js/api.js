@@ -512,3 +512,62 @@ export async function listarAulasProfesorMes(professorId, mesStr) {
     horasSubstituicao,
   };
 }
+
+/* --------- Transferência de alunos --------- */
+
+export async function transferirAluno(alunoId, novaTurmaId, dataTransferencia) {
+  // Busca aluno atual
+  const { data: aluno, error: alunoErr } = await supabase
+    .from("alunos")
+    .select("id, turma_id, nome")
+    .eq("id", alunoId)
+    .single();
+
+  if (alunoErr) throw alunoErr;
+  if (!aluno) throw new Error("Aluno não encontrado.");
+  if (String(aluno.turma_id) === String(novaTurmaId))
+    throw new Error("O aluno já pertence a esta turma.");
+
+  const dataStr =
+    dataTransferencia || new Date().toISOString().slice(0, 10);
+
+  // Registra histórico ANTES de atualizar
+  const { error: histErr } = await supabase
+    .from("transferencias_alunos")
+    .insert({
+      aluno_id: alunoId,
+      turma_origem_id: aluno.turma_id,
+      turma_destino_id: novaTurmaId,
+      data_transferencia: dataStr,
+    });
+
+  if (histErr) throw histErr;
+
+  // Atualiza turma e data_entrada do aluno
+  const { error: updateErr } = await supabase
+    .from("alunos")
+    .update({
+      turma_id: novaTurmaId,
+      data_entrada: dataStr,
+    })
+    .eq("id", alunoId);
+
+  if (updateErr) throw updateErr;
+
+  return true;
+}
+
+export async function listarHistoricoTransferencias(alunoId) {
+  const { data, error } = await supabase
+    .from("transferencias_alunos")
+    .select(
+      `id, data_transferencia, created_at,
+       turma_origem:turma_origem_id(nome),
+       turma_destino:turma_destino_id(nome)`
+    )
+    .eq("aluno_id", alunoId)
+    .order("data_transferencia", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}

@@ -1,3 +1,4 @@
+// Troque a linha existente de import do api.js por esta:
 import {
   listarTurmas,
   listarAlunos,
@@ -13,6 +14,8 @@ import {
   removerAluno,
   adminListarProfessores,
   atualizarAlunoNome,
+  transferirAluno,
+  listarHistoricoTransferencias,
 } from "./api.js";
 import { getCurrentUser } from "./auth.js";
 
@@ -487,17 +490,23 @@ async function renderTabAlunos() {
   } else {
     uiState.alunosTurmaAtual.forEach((aluno) => {
       const li = document.createElement("li");
-      li.innerHTML = `
-        <span>${aluno.nome}</span>
-        <div style="display:flex; gap:0.4rem;">
-          <button class="btn btn-outline btn-editar-aluno" data-aluno-id="${aluno.id}">
-            Editar
-          </button>
-          <button class="btn btn-outline btn-remover-aluno" data-aluno-id="${aluno.id}">
-            Remover
-          </button>
-        </div>
-      `;
+// DEPOIS:
+li.innerHTML = `
+  <span>${aluno.nome}</span>
+  <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+    <button class="btn btn-outline btn-editar-aluno" data-aluno-id="${aluno.id}">
+      Editar
+    </button>
+    <button class="btn btn-outline btn-transferir-aluno"
+      data-aluno-id="${aluno.id}"
+      style="color:#1565c0;border-color:#bfdbfe;">
+      Transferir
+    </button>
+    <button class="btn btn-outline btn-remover-aluno" data-aluno-id="${aluno.id}">
+      Remover
+    </button>
+  </div>
+`;
       lista.appendChild(li);
     });
 
@@ -547,6 +556,18 @@ async function renderTabAlunos() {
       });
     });
   }
+
+// Transferir aluno
+    lista.querySelectorAll(".btn-transferir-aluno").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const alunoId = btn.dataset.alunoId;
+        const aluno = uiState.alunosTurmaAtual.find(
+          (a) => String(a.id) === String(alunoId)
+        );
+        if (!aluno) return;
+        await mostrarModalTransferencia(aluno);
+      });
+    });
 
   // inicializar form de novo aluno uma vez
   if (!novoAlunoFormInicializado) {
@@ -1701,4 +1722,122 @@ async function renderResumoMes(mes) {
   const tabRelatorios = document.getElementById("tab-relatorios");
   const firstCard = tabRelatorios?.querySelector(".card");
   if (firstCard) firstCard.parentNode.insertBefore(card, firstCard);
+}
+
+/* ================== Modal de Transferência ================== */
+
+async function mostrarModalTransferencia(aluno) {
+  document.getElementById("modal-transferencia")?.remove();
+
+  // Carrega turmas disponíveis (exceto a atual)
+  let todasTurmas = [];
+  try {
+    todasTurmas = await listarTurmas();
+  } catch {
+    alert("Erro ao carregar lista de turmas.");
+    return;
+  }
+  const turmasDestino = todasTurmas.filter(
+    (t) => String(t.id) !== String(uiState.turmaAtual.id)
+  );
+
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  const modalEl = document.createElement("div");
+  modalEl.id = "modal-transferencia";
+  modalEl.className = "modal";
+  modalEl.innerHTML = `
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Transferir Aluno</h3>
+        <button class="modal-close" id="fecharModalTransf">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-row">
+          <span class="detail-label">Aluno:</span>
+          <span class="detail-value">${aluno.nome}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Turma atual:</span>
+          <span class="detail-value">${uiState.turmaAtual.nome}</span>
+        </div>
+
+        <div class="field-group" style="margin-top:1rem;">
+          <label for="selectNovaTurma">Turma de destino</label>
+          <select id="selectNovaTurma">
+            <option value="">Selecione...</option>
+            ${
+              turmasDestino.length
+                ? turmasDestino
+                    .map((t) => `<option value="${t.id}">${t.nome}</option>`)
+                    .join("")
+                : `<option disabled>Nenhuma outra turma disponível</option>`
+            }
+          </select>
+        </div>
+
+        <div class="field-group" style="margin-top:0.75rem;">
+          <label for="dataTransfInput">Data da transferência</label>
+          <input type="date" id="dataTransfInput" value="${hoje}" />
+        </div>
+
+        <p id="statusTransf" class="status-message"></p>
+
+        <div style="margin-top:1.25rem; display:flex; gap:0.75rem; justify-content:flex-end;">
+          <button class="btn btn-outline" id="cancelarTransf">Cancelar</button>
+          <button class="btn btn-primary" id="confirmarTransf"
+            ${!turmasDestino.length ? "disabled" : ""}>
+            Confirmar transferência
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modalEl);
+
+  const fechar = () => modalEl.remove();
+
+  document.getElementById("fecharModalTransf")
+    ?.addEventListener("click", fechar);
+  document.getElementById("cancelarTransf")
+    ?.addEventListener("click", fechar);
+  modalEl.addEventListener("click", (e) => {
+    if (e.target === modalEl) fechar();
+  });
+
+  document.getElementById("confirmarTransf")
+    ?.addEventListener("click", async () => {
+      const novaTurmaId = document.getElementById("selectNovaTurma")?.value;
+      const dataTransf = document.getElementById("dataTransfInput")?.value;
+      const statusEl = document.getElementById("statusTransf");
+      const btnConfirmar = document.getElementById("confirmarTransf");
+
+      if (!novaTurmaId) {
+        setStatus(statusEl, "Selecione a turma de destino.", true, 3000);
+        return;
+      }
+      if (!dataTransf) {
+        setStatus(statusEl, "Informe a data da transferência.", true, 3000);
+        return;
+      }
+
+      btnConfirmar.disabled = true;
+      btnConfirmar.textContent = "Transferindo...";
+
+      try {
+        await transferirAluno(aluno.id, novaTurmaId, dataTransf);
+        fechar();
+        await renderTabAlunos();
+      } catch (err) {
+        setStatus(
+          statusEl,
+          err.message || "Erro ao transferir aluno.",
+          true,
+          5000
+        );
+        btnConfirmar.disabled = false;
+        btnConfirmar.textContent = "Confirmar transferência";
+      }
+    });
 }
