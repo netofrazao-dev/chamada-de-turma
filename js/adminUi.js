@@ -645,7 +645,8 @@ async function initRelatorioProfTab() {
           <label for="relProfMes">Mês</label>
           <input type="month" id="relProfMes">
         </div>
-        <button id="relProfGerarBtn" class="btn btn-primary">Gerar</button>
+<button id="relProfGerarBtn" class="btn btn-primary">Gerar</button>
+<button id="relProfPdfBtn" class="btn btn-secondary">Exportar PDF</button>
       </div>
 
       <div id="relProfSummary" class="hidden" style="margin-bottom:1rem;">
@@ -699,6 +700,7 @@ async function carregarTabRelatorioProfAdmin() {
   }
 
   document.getElementById("relProfGerarBtn")?.addEventListener("click", gerarRelatorioProf);
+  document.getElementById("relProfPdfBtn")?.addEventListener("click", exportarPdfRelatorioAdmin);
 }
 
 async function gerarRelatorioProf() {
@@ -720,8 +722,19 @@ async function gerarRelatorioProf() {
   summary?.classList.add("hidden");
   if (statusEl) statusEl.textContent = "";
 
+  // Guarda para o PDF
+  window._relProfDados = null;
+
   try {
-    const { aulas, horasTotal, horasProprias, horasSubstituicao } = await listarAulasProfesorMes(profId, mes);
+    const resultado = await listarAulasProfesorMes(profId, mes);
+    const { aulas, horasTotal, horasProprias, horasSubstituicao, qtdSubstituidas } = resultado;
+
+    window._relProfDados = {
+      resultado,
+      profNome: document.getElementById("relProfSelect")
+        ?.selectedOptions[0]?.textContent || "-",
+      mes,
+    };
 
     const qtdProprias = aulas.filter((a) => a.tipo === "propria").length;
     const qtdSubs     = aulas.filter((a) => a.tipo === "substituicao").length;
@@ -735,6 +748,10 @@ async function gerarRelatorioProf() {
         <div class="summary-card">
           <div class="summary-card-label">Como substituto</div>
           <div class="summary-card-value">${qtdSubs}</div>
+        </div>
+        <div class="summary-card" style="border-color:#ef4444;">
+          <div class="summary-card-label">Aulas substituídas</div>
+          <div class="summary-card-value" style="color:#b91c1c;">${qtdSubstituidas ?? 0}</div>
         </div>
         <div class="summary-card">
           <div class="summary-card-label">H. próprias</div>
@@ -759,15 +776,25 @@ async function gerarRelatorioProf() {
     }
 
     aulas.forEach((aula) => {
-      const tipoBadge = aula.tipo === "propria"
-        ? '<span class="badge-status status-presente">Própria</span>'
-        : '<span class="badge-status status-na">Substituto</span>';
+      let tipoBadge, horasCell;
+      if (aula.tipo === "propria") {
+        tipoBadge = '<span class="badge-status status-presente">Ministrada</span>';
+        horasCell = `${Number(aula.horas_aula || 1.5).toFixed(1)}h`;
+      } else if (aula.tipo === "substituicao") {
+        tipoBadge = '<span class="badge-status status-na">Como substituto</span>';
+        horasCell = `${Number(aula.horas_aula || 1.5).toFixed(1)}h`;
+      } else {
+        const nomeSubst = aula.substituto_nome || "outro professor";
+        tipoBadge = `<span class="badge-status status-ausente" title="Substituída por ${nomeSubst}">Substituída</span>
+          <span style="font-size:0.75rem;color:#6b7280;display:block;margin-top:2px;">por ${nomeSubst}</span>`;
+        horasCell = '<span style="color:#9ca3af;">—</span>';
+      }
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${formatarDataBR(aula.data)}</td>
         <td>${aula.turma_nome}</td>
         <td>${tipoBadge}</td>
-        <td>${Number(aula.horas_aula || 1.5).toFixed(1)}h</td>
+        <td>${horasCell}</td>
       `;
       tbody.appendChild(tr);
     });
@@ -775,4 +802,157 @@ async function gerarRelatorioProf() {
     if (statusEl) { statusEl.style.color = "#e53935"; statusEl.textContent = err.message || "Erro ao gerar relatório."; }
     tbody.innerHTML = "<tr><td colspan='4'>Erro ao carregar dados.</td></tr>";
   }
+}
+/* ================== PDF — Relatório por Professor ================== */
+
+function exportarPdfRelatorioAdmin() {
+  const dados = window._relProfDados;
+  if (!dados) {
+    alert("Gere o relatório antes de exportar.");
+    return;
+  }
+  const { resultado, profNome, mes } = dados;
+  abrirJanelaPdfRelatorioProf({ resultado, profNome, mes });
+}
+
+export function abrirJanelaPdfRelatorioProf({ resultado, profNome, mes }) {
+  const { aulas, horasTotal, horasProprias, horasSubstituicao, qtdSubstituidas } = resultado;
+
+  const [anoStr, mesStr] = mes.split("-");
+  const tituloMes = `${mesStr}/${anoStr}`;
+  const hoje = new Date().toLocaleDateString("pt-BR");
+
+  const qtdProprias = aulas.filter((a) => a.tipo === "propria").length;
+  const qtdSubs     = aulas.filter((a) => a.tipo === "substituicao").length;
+  const totalDadas  = qtdProprias + qtdSubs;
+
+  const linhasHtml = aulas.map((aula) => {
+    let statusHtml, horasHtml;
+    if (aula.tipo === "propria") {
+      statusHtml = '<span class="badge ok">✓ Ministrada</span>';
+      horasHtml  = `${Number(aula.horas_aula || 1.5).toFixed(1)}h`;
+    } else if (aula.tipo === "substituicao") {
+      statusHtml = '<span class="badge sub">🔄 Aula como substituto</span>';
+      horasHtml  = `${Number(aula.horas_aula || 1.5).toFixed(1)}h`;
+    } else {
+      const nome = aula.substituto_nome || "outro professor";
+      statusHtml = `<span class="badge lost">✗ Substituída por ${nome}</span><br>
+        <small class="obs">Esta aula não foi contabilizada na carga horária</small>`;
+      horasHtml  = "—";
+    }
+    return `
+      <tr>
+        <td>${formatarDataBR(aula.data)}</td>
+        <td>${aula.turma_nome}</td>
+        <td>${statusHtml}</td>
+        <td class="horas">${horasHtml}</td>
+      </tr>`;
+  }).join("");
+
+  const win = window.open("", "_blank");
+  if (!win) { alert("Permita pop-ups para exportar o PDF."); return; }
+
+  win.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório Mensal — ${profNome} — ${tituloMes}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: #1f2937; padding: 32px; font-size: 13px; }
+  .header { border-bottom: 3px solid #1565c0; padding-bottom: 14px; margin-bottom: 20px; }
+  .header h1 { font-size: 20px; color: #1565c0; }
+  .header h2 { font-size: 14px; color: #6b7280; font-weight: 500; margin-top: 4px; }
+  .meta { display: flex; gap: 2rem; margin-top: 12px; font-size: 12px; }
+  .meta span { color: #6b7280; }
+  .meta strong { color: #1f2937; }
+  h3 { font-size: 13px; color: #1565c0; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  th { background: #f1f5f9; text-align: left; padding: 7px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #374151; border-bottom: 2px solid #e5e7eb; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .horas { text-align: right; font-weight: 600; white-space: nowrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .badge.ok   { background: #dcfce7; color: #166534; }
+  .badge.sub  { background: #ede9fe; color: #5b21b6; }
+  .badge.lost { background: #fee2e2; color: #b91c1c; }
+  .obs { font-size: 10px; color: #9ca3af; font-style: italic; }
+  .resumo { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; page-break-inside: avoid; }
+  .resumo h3 { margin-top: 0; }
+  .resumo table { margin-bottom: 0; }
+  .resumo td { padding: 6px 8px; font-size: 13px; }
+  .resumo td:last-child { text-align: right; font-weight: 700; min-width: 60px; }
+  .row-total { background: #eff6ff; }
+  .row-total td { color: #1565c0; font-size: 15px; }
+  .row-lost td { color: #b91c1c; }
+  .footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 11px; color: #9ca3af; }
+  @media print { body { padding: 16px; } }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>Challenger Language School</h1>
+    <h2>Relatório Mensal de Aulas</h2>
+    <div class="meta">
+      <div><span>Professor(a): </span><strong>${profNome}</strong></div>
+      <div><span>Período: </span><strong>${tituloMes}</strong></div>
+      <div><span>Emitido em: </span><strong>${hoje}</strong></div>
+    </div>
+  </div>
+
+  <h3>Aulas no Período</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Turma</th>
+        <th>Status</th>
+        <th style="text-align:right;">Horas</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${linhasHtml || '<tr><td colspan="4" style="color:#9ca3af;">Nenhuma aula registrada neste período.</td></tr>'}
+    </tbody>
+  </table>
+
+  <div class="resumo">
+    <h3>Resumo do Mês</h3>
+    <table>
+      <tr class="row-total">
+        <td>Total de horas no mês</td>
+        <td>${horasTotal.toFixed(1)}h</td>
+      </tr>
+      <tr>
+        <td>Total de aulas dadas (próprias + substituto)</td>
+        <td>${totalDadas}</td>
+      </tr>
+      <tr>
+        <td>Aulas próprias ministradas</td>
+        <td>${qtdProprias}</td>
+      </tr>
+      <tr>
+        <td>Horas próprias</td>
+        <td>${horasProprias.toFixed(1)}h</td>
+      </tr>
+      <tr>
+        <td>Aulas como substituto</td>
+        <td>${qtdSubs}</td>
+      </tr>
+      <tr>
+        <td>Horas como substituto</td>
+        <td>${horasSubstituicao.toFixed(1)}h</td>
+      </tr>
+      <tr class="row-lost">
+        <td>Aulas substituídas por outro professor <small style="font-weight:400;">(não contabilizadas)</small></td>
+        <td>${qtdSubstituidas ?? 0}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="footer">Challenger Language School • Sistema de Presença</div>
+
+  <script>window.onload = function() { window.print(); }<\/script>
+</body>
+</html>`);
+  win.document.close();
 }

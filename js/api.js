@@ -437,7 +437,6 @@ export async function calcularHorasPorProfessor({ inicio, fim } = {}) {
 export async function listarAulasProfesorMes(professorId, mesStr) {
   const { inicio, fim } = getMesInicioFim(mesStr);
 
-  // Turmas que esse professor é titular
   const { data: turmas, error: tErr } = await supabase
     .from("turmas")
     .select("id, nome")
@@ -449,15 +448,17 @@ export async function listarAulasProfesorMes(professorId, mesStr) {
   const turmaMapLocal = new Map((turmas || []).map((t) => [t.id, t.nome]));
 
   let aulasPropriasList = [];
+  let aulasSubstituidasList = [];
 
   if (turmaIds.length) {
+    // Aulas ministradas pelo próprio professor (inclui registros antigos com NULL)
     const { data: proprias, error: pErr } = await supabase
       .from("chamadas")
       .select(
         "id, data, turma_id, horas_aula, foi_ministrada, professor_substituto_id, substituto_nome_manual"
       )
       .in("turma_id", turmaIds)
-      .eq("foi_ministrada", true)
+      .or("foi_ministrada.is.null,foi_ministrada.eq.true")
       .gte("data", inicio)
       .lt("data", fim)
       .order("data", { ascending: true });
@@ -469,9 +470,42 @@ export async function listarAulasProfesorMes(professorId, mesStr) {
       turma_nome: turmaMapLocal.get(c.turma_id) || "-",
       tipo: "propria",
     }));
+
+    // Aulas das turmas do professor substituídas por outro
+    const { data: substituidas, error: ssErr } = await supabase
+      .from("chamadas")
+      .select(
+        `id, data, turma_id, horas_aula, foi_ministrada,
+         professor_substituto_id, substituto_nome_manual,
+         prof_sub:professores!professor_substituto_id(nome, email)`
+      )
+      .in("turma_id", turmaIds)
+      .eq("foi_ministrada", false)
+      .gte("data", inicio)
+      .lt("data", fim)
+      .order("data", { ascending: true });
+
+    if (ssErr) throw ssErr;
+
+    aulasSubstituidasList = (substituidas || []).map((c) => {
+      let substitutoNome = null;
+      if (c.substituto_nome_manual) {
+        substitutoNome = `${c.substituto_nome_manual} (externo)`;
+      } else if (c.prof_sub) {
+        substitutoNome = c.prof_sub.nome || c.prof_sub.email || "Professor do sistema";
+      } else if (c.professor_substituto_id) {
+        substitutoNome = "Professor do sistema";
+      }
+      return {
+        ...c,
+        turma_nome: turmaMapLocal.get(c.turma_id) || "-",
+        tipo: "substituida",
+        substituto_nome: substitutoNome,
+      };
+    });
   }
 
-  // Aulas em que ele foi substituto
+  // Aulas em que ele foi substituto em outra turma
   const { data: subs, error: sErr } = await supabase
     .from("chamadas")
     .select(
@@ -491,18 +525,17 @@ export async function listarAulasProfesorMes(professorId, mesStr) {
     tipo: "substituicao",
   }));
 
-  const todas = [...aulasPropriasList, ...aulasSubsList].sort((a, b) =>
-    a.data.localeCompare(b.data)
-  );
+  const todas = [
+    ...aulasPropriasList,
+    ...aulasSubsList,
+    ...aulasSubstituidasList,
+  ].sort((a, b) => a.data.localeCompare(b.data));
 
   const horasProprias = aulasPropriasList.reduce(
-    (acc, c) => acc + Number(c.horas_aula || 1.5),
-    0
+    (acc, c) => acc + Number(c.horas_aula || 1.5), 0
   );
-
   const horasSubstituicao = aulasSubsList.reduce(
-    (acc, c) => acc + Number(c.horas_aula || 1.5),
-    0
+    (acc, c) => acc + Number(c.horas_aula || 1.5), 0
   );
 
   return {
@@ -510,6 +543,7 @@ export async function listarAulasProfesorMes(professorId, mesStr) {
     horasTotal: horasProprias + horasSubstituicao,
     horasProprias,
     horasSubstituicao,
+    qtdSubstituidas: aulasSubstituidasList.length,
   };
 }
 

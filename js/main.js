@@ -12,6 +12,8 @@ import {
   initVoltarTurmas,
   setPerfilAtual,
   carregarProfessoresComoPastas,
+  setProfessorAtualId,        // ADICIONAR
+  initRelatorioMensalProf,    // ADICIONAR
 } from "./ui.js";
 
 import { getProfessorAtual } from "./api.js";
@@ -37,19 +39,15 @@ async function initAfterLogin(isAdmin) {
 
   initTurmasUI();
   initVoltarTurmas();
-
-  // informa o perfil para o módulo de UI (admin x professor)
   setPerfilAtual({ isAdmin });
 
   if (isAdmin) {
-    // Admin: primeira tela = lista de professores (“pastas”)
     await carregarProfessoresComoPastas();
   } else {
-    // Professor: comportamento antigo, lista direta de turmas
     await carregarTurmasPainel();
+    await initRelatorioMensalProf();   // ADICIONAR
   }
 
-  // painel admin continua funcionando (botão / seções extras)
   await initAdminUI();
 }
 
@@ -136,6 +134,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (user) {
       const prof = await getProfessorAtual().catch(() => null);
+      if (prof) setProfessorAtualId(prof.id);
       const nameEl = document.getElementById("currentTeacherName");
 
       if (prof && nameEl) {
@@ -158,6 +157,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (existingUser) {
     setAppView(true);
     const prof = await getProfessorAtual().catch(() => null);
+    if (prof) setProfessorAtualId(prof.id);
     const nameEl = document.getElementById("currentTeacherName");
 
     if (prof && nameEl) {
