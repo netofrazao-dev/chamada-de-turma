@@ -326,7 +326,7 @@ async function atualizarChamadasAdmin() {
     // Tabela de chamadas
     if (!chamadas.length) {
       tbody.innerHTML =
-        "<tr><td colspan='5'>Nenhuma chamada registrada neste período.</td></tr>";
+        "<tr><td colspan='6'>Nenhuma chamada registrada neste período.</td></tr>";
     } else {
       chamadas.forEach((ch) => {
         const totalRegistros = ch.chamada_presencas?.length ?? 0;
@@ -334,11 +334,22 @@ async function atualizarChamadasAdmin() {
           ch.chamada_presencas?.filter((p) => p.presente).length ?? 0;
         const ausentes = totalRegistros - presentes;
 
+        const tipoAula = ch.tipo_aula || "normal";
+        let tipoBadge;
+        if (tipoAula === "reforco") {
+          tipoBadge = '<span class="badge-status badge-tipo-aula-extra">Reforço</span>';
+        } else if (tipoAula === "reposicao") {
+          tipoBadge = '<span class="badge-status badge-tipo-aula-extra">Reposição</span>';
+        } else {
+          tipoBadge = '<span class="badge-status status-presente">Normal</span>';
+        }
+
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${formatarDataBR(ch.data)}</td>
           <td>${turma?.nome || "-"}</td>
           <td>${professor?.nome || "-"}</td>
+          <td>${tipoBadge}</td>
           <td>${presentes}</td>
           <td>${ausentes}</td>
         `;
@@ -789,11 +800,21 @@ async function gerarRelatorioProf() {
           <span style="font-size:0.75rem;color:#6b7280;display:block;margin-top:2px;">por ${nomeSubst}</span>`;
         horasCell = '<span style="color:#9ca3af;">—</span>';
       }
+
+      // Badge de tipo de aula (reforço/reposição)
+      const tipoAula = aula.tipo_aula || "normal";
+      let tipoAulaBadge = "";
+      if (tipoAula === "reforco") {
+        tipoAulaBadge = ' <span class="badge-status badge-tipo-aula-extra">Reforço</span>';
+      } else if (tipoAula === "reposicao") {
+        tipoAulaBadge = ' <span class="badge-status badge-tipo-aula-extra">Reposição</span>';
+      }
+
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${formatarDataBR(aula.data)}</td>
         <td>${aula.turma_nome}</td>
-        <td>${tipoBadge}</td>
+        <td>${tipoBadge}${tipoAulaBadge}</td>
         <td>${horasCell}</td>
       `;
       tbody.appendChild(tr);
