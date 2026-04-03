@@ -186,7 +186,7 @@ export async function obterChamadaPorData(turmaId, dataStr) {
   const { data, error } = await supabase
     .from("chamadas")
     .select(
-      "id, data, foi_ministrada, professor_substituto_id, substituto_nome_manual, chamada_presencas(aluno_id, presente)"
+      "id, data, tipo_aula, foi_ministrada, professor_substituto_id, substituto_nome_manual, chamada_presencas(aluno_id, presente)"
     )
     .eq("turma_id", turmaId)
     .eq("data", dataStr)
@@ -203,7 +203,7 @@ export async function listarChamadasMes(turmaId, mesStr) {
   const { data, error } = await supabase
     .from("chamadas")
     .select(
-      "id, data, foi_ministrada, professor_substituto_id, substituto_nome_manual, chamada_presencas(aluno_id, presente)"
+      "id, data, tipo_aula, foi_ministrada, professor_substituto_id, substituto_nome_manual, chamada_presencas(aluno_id, presente)"
     )
     .eq("turma_id", turmaId)
     .gte("data", inicio)
@@ -223,6 +223,8 @@ export async function salvarChamada(
     foiMinistrada = true,
     professorSubstitutoId = null,
     substitutoNomeManual = null,
+    tipoAula = "normal",
+    alunosParticipantes = null,
   } = {}
 ) {
   const existente = await obterChamadaPorData(turmaId, dataStr);
@@ -243,23 +245,32 @@ export async function salvarChamada(
       foi_ministrada: foiMinistrada,
       professor_substituto_id: professorSubstitutoId || null,
       substituto_nome_manual: substitutoNomeManual || null,
+      tipo_aula: tipoAula || "normal",
     })
     .select("id")
     .single();
 
   if (chErr) throw chErr;
 
-  const registros = todosAlunos.map((aluno) => ({
+  // Para aulas de reforço/reposição, só registra presença dos alunos participantes
+  const isExtra = tipoAula === "reforco" || tipoAula === "reposicao";
+  const alunosRegistro = isExtra && alunosParticipantes
+    ? todosAlunos.filter((a) => alunosParticipantes.includes(a.id))
+    : todosAlunos;
+
+  const registros = alunosRegistro.map((aluno) => ({
     chamada_id: chamada.id,
     aluno_id: aluno.id,
     presente: presentesIds.includes(aluno.id),
   }));
 
-  const { error: presErr } = await supabase
-    .from("chamada_presencas")
-    .insert(registros);
+  if (registros.length) {
+    const { error: presErr } = await supabase
+      .from("chamada_presencas")
+      .insert(registros);
 
-  if (presErr) throw presErr;
+    if (presErr) throw presErr;
+  }
 
   return chamada.id;
 }
@@ -455,7 +466,7 @@ export async function listarAulasProfesorMes(professorId, mesStr) {
     const { data: proprias, error: pErr } = await supabase
       .from("chamadas")
       .select(
-        "id, data, turma_id, horas_aula, foi_ministrada, professor_substituto_id, substituto_nome_manual"
+        "id, data, turma_id, horas_aula, foi_ministrada, professor_substituto_id, substituto_nome_manual, tipo_aula"
       )
       .in("turma_id", turmaIds)
       .or("foi_ministrada.is.null,foi_ministrada.eq.true")
@@ -476,7 +487,7 @@ export async function listarAulasProfesorMes(professorId, mesStr) {
       .from("chamadas")
       .select(
         `id, data, turma_id, horas_aula, foi_ministrada,
-         professor_substituto_id, substituto_nome_manual,
+         professor_substituto_id, substituto_nome_manual, tipo_aula,
          prof_sub:professores!professor_substituto_id(nome, email)`
       )
       .in("turma_id", turmaIds)
@@ -509,7 +520,7 @@ export async function listarAulasProfesorMes(professorId, mesStr) {
   const { data: subs, error: sErr } = await supabase
     .from("chamadas")
     .select(
-      "id, data, turma_id, horas_aula, foi_ministrada, professor_substituto_id, substituto_nome_manual, turmas(nome)"
+      "id, data, turma_id, horas_aula, foi_ministrada, professor_substituto_id, substituto_nome_manual, tipo_aula, turmas(nome)"
     )
     .eq("professor_substituto_id", professorId)
     .eq("foi_ministrada", false)
