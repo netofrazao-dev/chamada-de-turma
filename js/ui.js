@@ -929,7 +929,7 @@ async function renderTabChamada() {
 
         // Para reforço/reposição, só considerar alunos participantes
         const alunosParaChamada = isExtra && alunosParticipantes
-          ? uiState.alunosTurmaAtual.filter((a) => alunosParticipantes.includes(a.id))
+          ? uiState.alunosTurmaAtual.filter((a) => alunosParticipantes.includes(String(a.id)))
           : uiState.alunosTurmaAtual;
 
         const presentesIds = alunosParaChamada

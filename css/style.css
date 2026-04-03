@@ -2518,7 +2518,7 @@ textarea {
   opacity: 0.45;
 }
 
-.chamada-row--disabled .chamada-nome {
+.chamada-row--disabled .chamada-aluno-nome {
   text-decoration: line-through;
   color: #9ca3af;
 }

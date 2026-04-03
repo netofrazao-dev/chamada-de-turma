@@ -255,7 +255,7 @@ export async function salvarChamada(
   // Para aulas de reforço/reposição, só registra presença dos alunos participantes
   const isExtra = tipoAula === "reforco" || tipoAula === "reposicao";
   const alunosRegistro = isExtra && alunosParticipantes
-    ? todosAlunos.filter((a) => alunosParticipantes.includes(a.id))
+    ? todosAlunos.filter((a) => alunosParticipantes.includes(String(a.id)))
     : todosAlunos;
 
   const registros = alunosRegistro.map((aluno) => ({
