@@ -738,6 +738,108 @@ async function initMinistradaSection() {
   nomeManualInp.addEventListener("input", sync);
 }
 
+/* ================== Tipo de Aula (reforço/reposição) ================== */
+
+function initTipoAulaSection() {
+  const lista = document.getElementById("listaAlunosChamada");
+  if (!lista) return;
+
+  document.getElementById("tipo-aula-section")?.remove();
+
+  const section = document.createElement("div");
+  section.id = "tipo-aula-section";
+  section.className = "tipo-aula-section";
+  section.innerHTML = `
+    <div class="field-group">
+      <label for="tipoAulaSelect">Tipo de aula</label>
+      <select id="tipoAulaSelect">
+        <option value="normal">Normal</option>
+        <option value="reforco">Reforço</option>
+        <option value="reposicao">Reposição</option>
+      </select>
+    </div>
+    <p id="tipoAulaInfo" class="help-text tipo-aula-info hidden">
+      Selecione os alunos que participarão desta aula. Os demais não receberão falta.
+    </p>
+  `;
+
+  // Insert before the ministrada section or the lista
+  const ministradaSection = document.getElementById("aula-ministrada-section");
+  if (ministradaSection) {
+    ministradaSection.parentNode.insertBefore(section, ministradaSection);
+  } else {
+    lista.parentNode.insertBefore(section, lista);
+  }
+
+  const select = section.querySelector("#tipoAulaSelect");
+  const info = section.querySelector("#tipoAulaInfo");
+
+  select.addEventListener("change", () => {
+    const isExtra = select.value === "reforco" || select.value === "reposicao";
+    info.classList.toggle("hidden", !isExtra);
+    atualizarModoSelecaoAlunos(isExtra);
+  });
+}
+
+function atualizarModoSelecaoAlunos(isExtra) {
+  const rows = document.querySelectorAll(".chamada-row");
+  rows.forEach((row) => {
+    let checkbox = row.querySelector(".chamada-participante-check");
+    if (isExtra) {
+      if (!checkbox) {
+        checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "chamada-participante-check";
+        checkbox.checked = true;
+        row.insertBefore(checkbox, row.firstChild);
+
+        checkbox.addEventListener("change", () => {
+          const buttons = row.querySelector(".chamada-buttons");
+          if (buttons) {
+            buttons.style.opacity = checkbox.checked ? "1" : "0.3";
+            buttons.style.pointerEvents = checkbox.checked ? "auto" : "none";
+          }
+          row.classList.toggle("chamada-row--disabled", !checkbox.checked);
+        });
+      }
+      checkbox.style.display = "";
+      checkbox.checked = true;
+      row.classList.remove("chamada-row--disabled");
+      const buttons = row.querySelector(".chamada-buttons");
+      if (buttons) {
+        buttons.style.opacity = "1";
+        buttons.style.pointerEvents = "auto";
+      }
+    } else {
+      if (checkbox) {
+        checkbox.style.display = "none";
+        checkbox.checked = true;
+      }
+      row.classList.remove("chamada-row--disabled");
+      const buttons = row.querySelector(".chamada-buttons");
+      if (buttons) {
+        buttons.style.opacity = "1";
+        buttons.style.pointerEvents = "auto";
+      }
+    }
+  });
+}
+
+function getAlunosParticipantes() {
+  const tipoSelect = document.getElementById("tipoAulaSelect");
+  const tipo = tipoSelect?.value || "normal";
+  if (tipo === "normal") return null;
+
+  const ids = [];
+  document.querySelectorAll(".chamada-row").forEach((row) => {
+    const checkbox = row.querySelector(".chamada-participante-check");
+    if (checkbox && checkbox.checked) {
+      ids.push(row.dataset.alunoId);
+    }
+  });
+  return ids;
+}
+
 /* ================== Tab CHAMADA ================== */
 
 async function renderTabChamada() {
@@ -761,6 +863,9 @@ async function renderTabChamada() {
 
   // Seção "Ministrada?"
   await initMinistradaSection();
+
+  // Seção "Tipo de aula"
+  initTipoAulaSection();
 
   if (!uiState.alunosTurmaAtual.length) {
     lista.innerHTML =
@@ -817,7 +922,17 @@ async function renderTabChamada() {
         return;
       }
       try {
-        const presentesIds = uiState.alunosTurmaAtual
+        const tipoAulaSelect = document.getElementById("tipoAulaSelect");
+        const tipoAula = tipoAulaSelect?.value || "normal";
+        const isExtra = tipoAula === "reforco" || tipoAula === "reposicao";
+        const alunosParticipantes = getAlunosParticipantes();
+
+        // Para reforço/reposição, só considerar alunos participantes
+        const alunosParaChamada = isExtra && alunosParticipantes
+          ? uiState.alunosTurmaAtual.filter((a) => alunosParticipantes.includes(String(a.id)))
+          : uiState.alunosTurmaAtual;
+
+        const presentesIds = alunosParaChamada
           .filter((a) => uiState.presencas.get(a.id) === true)
           .map((a) => a.id);
 
@@ -851,7 +966,13 @@ async function renderTabChamada() {
           dataInput.value,
           presentesIds,
           uiState.alunosTurmaAtual,
-          { foiMinistrada, professorSubstitutoId, substitutoNomeManual }
+          {
+            foiMinistrada,
+            professorSubstitutoId,
+            substitutoNomeManual,
+            tipoAula,
+            alunosParticipantes,
+          }
         );
         setStatus(statusEl, "Chamada salva com sucesso.");
       } catch (err) {
@@ -871,6 +992,17 @@ async function carregarChamadaParaData(dataStr) {
 
   const chamada = await obterChamadaPorData(uiState.turmaAtual.id, dataStr);
   if (currentView !== viewId) return;
+
+  // Restaurar tipo de aula
+  const tipoAulaSelect = document.getElementById("tipoAulaSelect");
+  const tipoAulaInfo = document.getElementById("tipoAulaInfo");
+  if (tipoAulaSelect) {
+    const tipo = chamada?.tipo_aula || "normal";
+    tipoAulaSelect.value = tipo;
+    const isExtra = tipo === "reforco" || tipo === "reposicao";
+    tipoAulaInfo?.classList.toggle("hidden", !isExtra);
+    atualizarModoSelecaoAlunos(isExtra);
+  }
 
   const foiMinistradaCheck = document.getElementById("foiMinistradaCheck");
   const subContainer = document.getElementById("substitutoContainer");
@@ -926,6 +1058,11 @@ async function carregarChamadaParaData(dataStr) {
 
   // Presenças (lógica original)
   uiState.presencas = new Map();
+  const isExtra = (chamada?.tipo_aula === "reforco" || chamada?.tipo_aula === "reposicao");
+  const participantesIds = isExtra
+    ? new Set((chamada?.chamada_presencas || []).map((p) => String(p.aluno_id)))
+    : null;
+
   document.querySelectorAll(".chamada-row").forEach((row) => {
     const alunoId = row.dataset.alunoId;
     const btnP = row.querySelector(".btn-presenca.present");
@@ -933,6 +1070,20 @@ async function carregarChamadaParaData(dataStr) {
     if (!btnP || !btnA) return;
     btnP.classList.remove("selected");
     btnA.classList.remove("selected");
+
+    // Para reforço/reposição, desmarcar alunos que não participaram
+    const checkbox = row.querySelector(".chamada-participante-check");
+    if (isExtra && checkbox) {
+      const participa = participantesIds?.has(alunoId) ?? false;
+      checkbox.checked = participa;
+      const buttons = row.querySelector(".chamada-buttons");
+      if (buttons) {
+        buttons.style.opacity = participa ? "1" : "0.3";
+        buttons.style.pointerEvents = participa ? "auto" : "none";
+      }
+      row.classList.toggle("chamada-row--disabled", !participa);
+    }
+
     if (!chamada) return;
     const reg = chamada.chamada_presencas?.find(
       (p) => String(p.aluno_id) === String(alunoId)
@@ -1016,7 +1167,17 @@ async function atualizarTabelaRelatorio(mes) {
       ? chamadas.filter((ch) => ch.data >= dataEntrada)
       : chamadas;
 
-    const totalDiasValidos = chamadasValidas.length;
+    // Para reforço/reposição: só contar chamadas em que o aluno participou
+    const chamadasContaveis = chamadasValidas.filter((ch) => {
+      const isExtra = ch.tipo_aula === "reforco" || ch.tipo_aula === "reposicao";
+      if (!isExtra) return true; // aula normal: sempre conta
+      // aula extra: só conta se o aluno tem registro de presença
+      return ch.chamada_presencas?.some(
+        (p) => String(p.aluno_id) === String(aluno.id)
+      );
+    });
+
+    const totalDiasValidos = chamadasContaveis.length;
 
     if (!totalDiasValidos) {
       // Nenhuma chamada em que esse aluno "está na turma" -> N/A
@@ -1034,7 +1195,7 @@ async function atualizarTabelaRelatorio(mes) {
 
     let presencas = 0;
 
-    chamadasValidas.forEach((ch) => {
+    chamadasContaveis.forEach((ch) => {
       const reg = ch.chamada_presencas?.find(
         (p) => String(p.aluno_id) === String(aluno.id)
       );
@@ -1126,6 +1287,11 @@ async function renderCalendario(mes) {
 
       let statusClass, statusIcon, statusTitle;
 
+      // Identificar tipo de aula extra
+      const tipoAula = registro.tipo_aula || "normal";
+      const isExtra = tipoAula === "reforco" || tipoAula === "reposicao";
+      const tipoLabel = tipoAula === "reforco" ? "Reforço" : tipoAula === "reposicao" ? "Reposição" : "";
+
       if (aulaCancelada) {
         statusClass = "calendar-cancelled";
         statusIcon = "✗";
@@ -1140,6 +1306,16 @@ async function renderCalendario(mes) {
               uiState.todosProfessores
             ) || "Professor substituto";
         statusTitle = `Substituição: ${nomeSubst}`;
+      } else if (isExtra) {
+        // Aula de reforço/reposição
+        const presValidas = registro.chamada_presencas || [];
+        const presentes = presValidas.filter((p) => p.presente).length;
+        const totalParticipantes = presValidas.length;
+        statusClass = "calendar-extra";
+        statusIcon = tipoAula === "reforco" ? "📚" : "🔁";
+        statusTitle = `${tipoLabel}: ${presentes}/${totalParticipantes} presentes`;
+        dayDiv.dataset.presentes = presentes;
+        dayDiv.dataset.total = totalParticipantes;
       } else {
         // Aula normal → lógica de presença
         const alunosNoDia = alunos.filter(
@@ -1188,6 +1364,7 @@ async function renderCalendario(mes) {
             ? '<div class="calendar-has-call-indicator"></div>'
             : ""
         }
+        ${isExtra ? `<div class="calendar-tipo-aula-badge">${tipoLabel}</div>` : ""}
       `;
       dayDiv.style.cursor = "pointer";
       dayDiv.addEventListener("click", () =>
@@ -1211,6 +1388,7 @@ async function renderCalendario(mes) {
       <div class="legend-item"><div class="legend-color calendar-partial">◐</div><span>Chamada Parcial</span></div>
       <div class="legend-item"><div class="legend-color calendar-no-call">⚠️</div><span>Sem Chamada</span></div>
       <div class="legend-item"><div class="legend-color calendar-substituted">🔄</div><span>Substituição</span></div>
+      <div class="legend-item"><div class="legend-color calendar-extra">📚</div><span>Reforço / Reposição</span></div>
       <div class="legend-item"><div class="legend-color calendar-cancelled">✗</div><span>Não Realizada</span></div>
       <div class="legend-item"><div class="legend-color calendar-no-class"></div><span>Sem Aula</span></div>
     </div>
@@ -1262,8 +1440,21 @@ async function mostrarDetalhesCalendario(data, mesAtual) {
 
   // Informações de substituição / status da aula
   const foiMinistrada = chamada.foi_ministrada !== false;
+  const tipoAulaChamada = chamada.tipo_aula || "normal";
+  const isExtraChamada = tipoAulaChamada === "reforco" || tipoAulaChamada === "reposicao";
+  const tipoAulaLabel = tipoAulaChamada === "reforco" ? "Reforço" : tipoAulaChamada === "reposicao" ? "Reposição" : "Normal";
   let substituicaoInfoHtml = "";
   let statusAulaHtml = "";
+  let tipoAulaInfoHtml = "";
+
+  if (isExtraChamada) {
+    tipoAulaInfoHtml = `
+      <div class="detail-row">
+        <span class="detail-label">Tipo de aula:</span>
+        <span class="detail-value"><span class="badge-status badge-tipo-aula-extra">${tipoAulaLabel}</span></span>
+      </div>
+    `;
+  }
 
   if (foiMinistrada) {
     statusAulaHtml =
@@ -1317,6 +1508,11 @@ async function mostrarDetalhesCalendario(data, mesAtual) {
     if (!alunoNaData) {
       // Não aplicável (entrou depois da data da chamada)
       statusTexto = "Ainda não era aluno nesse momento";
+      statusClasse = "status-na";
+      naoAplicaveis++;
+    } else if (isExtraChamada && !presencaMap.has(alunoIdStr)) {
+      // Para reforço/reposição: aluno não participou (sem falta)
+      statusTexto = "Não participou";
       statusClasse = "status-na";
       naoAplicaveis++;
     } else {
@@ -1391,6 +1587,7 @@ async function mostrarDetalhesCalendario(data, mesAtual) {
           <span class="detail-label">Turma:</span>
           <span class="detail-value">${uiState.turmaAtual.nome}</span>
         </div>
+        ${tipoAulaInfoHtml}
         <div class="detail-row">
           <span class="detail-label">Status da aula:</span>
           <span class="detail-value">${statusAulaHtml}</span>
@@ -1653,6 +1850,12 @@ async function renderResumoMes(mes) {
       !c.professor_substituto_id &&
       !c.substituto_nome_manual
   ).length;
+  const aulasReforco = chamadas.filter(
+    (c) => c.tipo_aula === "reforco"
+  ).length;
+  const aulasReposicao = chamadas.filter(
+    (c) => c.tipo_aula === "reposicao"
+  ).length;
   const horasTotal = chamadas
     .filter(
       (c) =>
@@ -1713,6 +1916,16 @@ async function renderResumoMes(mes) {
         <div class="summary-card-label">Não realizadas</div>
         <div class="summary-card-value" style="color:#b91c1c;">${aulasNaoRealizadas}</div>
       </div>
+      ${aulasReforco > 0 ? `
+      <div class="summary-card">
+        <div class="summary-card-label">Reforço</div>
+        <div class="summary-card-value" style="color:#0369a1;">${aulasReforco}</div>
+      </div>` : ""}
+      ${aulasReposicao > 0 ? `
+      <div class="summary-card">
+        <div class="summary-card-label">Reposição</div>
+        <div class="summary-card-value" style="color:#0369a1;">${aulasReposicao}</div>
+      </div>` : ""}
       <div class="summary-card summary-card--total">
         <div class="summary-card-label">Total de horas</div>
         <div class="summary-card-value">${horasTotal.toFixed(
@@ -1989,11 +2202,21 @@ export async function initRelatorioMensalProf() {
               <span style="font-size:0.75rem;color:#6b7280;display:block;">por ${nome}</span>`;
             horasCell = '<span style="color:#9ca3af;">—</span>';
           }
+
+          // Badge de tipo de aula (reforço/reposição)
+          const tipoAula = aula.tipo_aula || "normal";
+          let tipoAulaBadge = "";
+          if (tipoAula === "reforco") {
+            tipoAulaBadge = ' <span class="badge-status badge-tipo-aula-extra">Reforço</span>';
+          } else if (tipoAula === "reposicao") {
+            tipoAulaBadge = ' <span class="badge-status badge-tipo-aula-extra">Reposição</span>';
+          }
+
           const tr = document.createElement("tr");
           tr.innerHTML = `
             <td>${formatarDataBR(aula.data)}</td>
             <td>${aula.turma_nome}</td>
-            <td>${tipoBadge}</td>
+            <td>${tipoBadge}${tipoAulaBadge}</td>
             <td>${horasCell}</td>
           `;
           tbody.appendChild(tr);
