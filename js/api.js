@@ -237,6 +237,10 @@ export async function salvarChamada(
     if (delErr) throw delErr;
   }
 
+  const tipoAulaNorm = tipoAula || "normal";
+  const horas_aula =
+    tipoAulaNorm === "reforco" || tipoAulaNorm === "reposicao" ? 1 : 1.5;
+
   const { data: chamada, error: chErr } = await supabase
     .from("chamadas")
     .insert({
@@ -245,7 +249,8 @@ export async function salvarChamada(
       foi_ministrada: foiMinistrada,
       professor_substituto_id: professorSubstitutoId || null,
       substituto_nome_manual: substitutoNomeManual || null,
-      tipo_aula: tipoAula || "normal",
+      tipo_aula: tipoAulaNorm,
+      horas_aula,
     })
     .select("id")
     .single();

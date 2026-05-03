@@ -7,7 +7,14 @@
   <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" href="imagens/icon.png" type="image/jpeg">
+  <link rel="icon" href="imagens/icon.png">
   <link rel="shortcut icon" href="imagens/icon.png" type="image/jpeg">
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d6efd">
+
+<!-- iOS suporte -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icons/icon.png">
 </head>
 <body>
   <div id="app" class="app-wrapper">
@@ -449,5 +456,12 @@
   </div>
 
   <script type="module" src="js/main.js"></script>
+  <script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js")
+    .then(() => console.log("SW registrado"))
+    .catch(err => console.log("Erro SW:", err));
+}
+</script>
 </body>
 </html>

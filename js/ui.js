@@ -643,13 +643,17 @@ function atualizarInfoHoras(foiMinistrada, substitutoId, nomeManual) {
   if (!el) return;
   el.className = "help-text ministrada-info";
 
+  const tipoAulaSelect = document.getElementById("tipoAulaSelect");
+  const tipoAula = tipoAulaSelect?.value || "normal";
+  const horas =
+    tipoAula === "reforco" || tipoAula === "reposicao" ? "1h" : "1.5h";
+
   if (foiMinistrada) {
     el.classList.add("ministrada-info--ok");
-    el.textContent = "✓ Esta aula valerá 1.5h para você.";
+    el.textContent = `✓ Esta aula valerá ${horas} para você.`;
   } else if (substitutoId) {
     el.classList.add("ministrada-info--warn");
-    el.textContent =
-      "⚠ Você não ministrou. As 1.5h vão para o professor substituto do sistema.";
+    el.textContent = `⚠ Você não ministrou. As ${horas} vão para o professor substituto do sistema.`;
   } else if (nomeManual) {
     el.classList.add("ministrada-info--warn");
     el.textContent = `⚠ Aula ministrada por "${nomeManual}" (externo). Não contabilizada no sistema.`;
@@ -778,6 +782,21 @@ function initTipoAulaSection() {
     const isExtra = select.value === "reforco" || select.value === "reposicao";
     info.classList.toggle("hidden", !isExtra);
     atualizarModoSelecaoAlunos(isExtra);
+
+    // Atualiza o texto de horas conforme o tipo de aula selecionado
+    const foiMinistradaCheck = document.getElementById("foiMinistradaCheck");
+    const subSel = document.getElementById("professorSubstitutoSelect");
+    const nomeManualInp = document.getElementById("substitutoNomeManualInput");
+    if (foiMinistradaCheck) {
+      const isOutro = subSel?.value === "outro";
+      atualizarInfoHoras(
+        foiMinistradaCheck.checked,
+        !foiMinistradaCheck.checked && !isOutro ? subSel?.value || null : null,
+        !foiMinistradaCheck.checked && isOutro
+          ? nomeManualInp?.value.trim() || null
+          : null
+      );
+    }
   });
 }
 
