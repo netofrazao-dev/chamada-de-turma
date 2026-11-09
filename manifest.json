@@ -1,21 +1,36 @@
 {
-  "name": "Chamada de Turma",
-  "short_name": "Turma",
-  "start_url": "./index.html",
+  "id": "./",
+  "name": "Challenger Presença",
+  "short_name": "Presença",
+  "description": "Chamadas, frequência e relatórios das turmas da Challenger Language School.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#ffffff",
-  "theme_color": "#0d6efd",
-  "orientation": "portrait",
+  "theme_color": "#13215a",
+  "categories": ["education", "productivity"],
   "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
     {
-      "src": "/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
+      "name": "Minhas turmas",
+      "short_name": "Turmas",
+      "url": "./#/",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "src": "/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
+      "name": "Meu relatório",
+      "short_name": "Relatório",
+      "url": "./#/meu-relatorio",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

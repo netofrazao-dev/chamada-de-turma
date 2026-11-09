@@ -1,0 +1,110 @@
+# Mantém o banco do Supabase (plano grátis) ativo.
+#
+# O Supabase pausa projetos grátis depois de 7 dias sem uso. Este workflow
+# roda sozinho todos os dias no GitHub, faz uma consulta ao banco e com isso
+# o projeto nunca fica "parado". Não precisa fazer nada manualmente.
+#
+# Também dá para rodar na mão: aba "Actions" do GitHub → "Manter Supabase ativo" → "Run workflow".
+
+name: Manter Supabase ativo
+
+on:
+  schedule:
+    # Todos os dias às 09:23 no horário de Brasília (12:23 UTC).
+    - cron: "23 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write # usado só para manter este agendamento ligado (veja o último passo)
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: Consultar o banco
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Se quiser, cadastre SUPABASE_URL e SUPABASE_ANON_KEY em
+      # Settings → Secrets and variables → Actions. Senão, usa os mesmos valores do site
+      # (a chave "anon" já é pública, ela fica no navegador de quem usa o app).
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://fuuwchrbxqusnkmxfmym.supabase.co' }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ1dXdjaHJieHF1c25rbXhmbXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NDczMDksImV4cCI6MjA4ODIyMzMwOX0.yG051YvVk1SMq05TsfmmiGKNO_ou4pPhp1FCSStPp3w' }}
+    steps:
+      - name: Fazer consultas no Supabase
+        shell: bash
+        run: |
+          set -uo pipefail
+          AUTH=(-H "apikey: ${SUPABASE_ANON_KEY}" -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+
+          # Faz uma requisição e devolve só o código HTTP (000 = sem resposta).
+          req() {
+            local code
+            code=$(curl -sS -o resp.txt -w '%{http_code}' --max-time 40 \
+              --retry 4 --retry-delay 20 --retry-connrefused "$@" 2>/dev/null) || true
+            code="${code: -3}"
+            echo "${code:-000}"
+          }
+
+          ok=0
+          {
+            echo "### Keep-alive do Supabase"
+            echo ""
+            echo "| Verificação | Resultado |"
+            echo "|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 1) Função keep_alive(): grava a data do último ping no banco.
+          #    Ela é criada pelo arquivo supabase/keep_alive.sql (opcional, mas recomendado).
+          code=$(req -X POST "${AUTH[@]}" -H "Content-Type: application/json" -d '{}' \
+            "${SUPABASE_URL}/rest/v1/rpc/keep_alive")
+          echo "Função keep_alive → HTTP ${code} $(head -c 120 resp.txt 2>/dev/null)"
+          if [[ "$code" == 2* ]]; then
+            ok=1
+            echo "| Função keep_alive (escrita) | ✅ HTTP ${code} |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Função keep_alive (escrita) | ⚪ HTTP ${code} (rode supabase/keep_alive.sql para ativar) |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          # 2) Leitura simples em tabelas do app (vale como atividade no banco).
+          for tabela in turmas professores alunos chamadas; do
+            code=$(req "${AUTH[@]}" "${SUPABASE_URL}/rest/v1/${tabela}?select=id&limit=1")
+            echo "Tabela ${tabela} → HTTP ${code}"
+            if [[ "$code" == 2* || "$code" == "401" || "$code" == "403" ]]; then
+              ok=1
+              echo "| Leitura da tabela \`${tabela}\` | ✅ HTTP ${code} |" >> "$GITHUB_STEP_SUMMARY"
+              break
+            fi
+          done
+
+          # 3) Serviço de autenticação.
+          code=$(req "${AUTH[@]}" "${SUPABASE_URL}/auth/v1/health")
+          echo "Auth → HTTP ${code}"
+          echo "| Serviço de login | $([[ "$code" == 2* ]] && echo "✅" || echo "⚠️") HTTP ${code} |" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$ok" != "1" ]]; then
+            msg="O banco do Supabase não respondeu. Se o projeto estiver PAUSADO, entre em https://supabase.com/dashboard, abra o projeto e clique em 'Restore project'. Depois disso este workflow volta a mantê-lo ativo."
+            echo "::error::${msg}"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "❌ ${msg}" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Banco ativo ✅"
+
+      # O GitHub desliga agendamentos de repositórios públicos que ficam 60 dias
+      # sem nenhum commit. Reativar o workflow pela API reinicia essa contagem,
+      # sem precisar criar commits automáticos.
+      - name: Manter este agendamento ligado
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api --method PUT "repos/${{ github.repository }}/actions/workflows/keep-alive.yml/enable" >/dev/null; then
+            echo "Agendamento confirmado como ativo."
+          else
+            echo "::warning::Não foi possível confirmar o agendamento (sem impacto no ping de hoje)."
+          fi
