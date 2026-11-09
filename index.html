@@ -1,467 +1,54 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <title>Challenger Presença </title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="icon" href="imagens/icon.png" type="image/jpeg">
-  <link rel="icon" href="imagens/icon.png">
-  <link rel="shortcut icon" href="imagens/icon.png" type="image/jpeg">
-  <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0d6efd">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Challenger Presença</title>
+  <meta name="description" content="Controle de frequência e chamadas da Challenger Language School.">
 
-<!-- iOS suporte -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<link rel="apple-touch-icon" href="icons/icon.png">
+  <!-- Cores da barra do navegador / status bar -->
+  <meta name="theme-color" content="#13215a">
+  <meta name="color-scheme" content="light dark">
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
+
+  <!-- iPhone / iPad -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Presença">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+  <!-- Conexões antecipadas (carrega mais rápido) -->
+  <link rel="preconnect" href="https://fuuwchrbxqusnkmxfmym.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/+esm" crossorigin>
+
+  <script>
+    // Guarda o "#" original (links de confirmação / nova senha do Supabase)
+    window.__hashInicial = location.hash;
+    // Aplica o tema salvo antes de desenhar a página (evita "piscar")
+    try {
+      var t = JSON.parse(localStorage.getItem("tema"));
+      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="css/app.css?v=2.0.0">
 </head>
 <body>
-  <div id="app" class="app-wrapper">
-    <!-- ========== Tela de Login / Cadastro ========== -->
-    <div id="auth-view" class="auth-view">
-      <div class="auth-card">
-        <h1 class="auth-title"><img src="imagens/logo-branca.jpeg" alt="logo branca"></h1>
-        <p class="auth-subtitle">Entre para acessar suas turmas e chamadas.</p>
-
-        <div class="auth-tabs">
-          <button id="loginTabBtn" class="auth-tab active">Login</button>
-          <button id="signupTabBtn" class="auth-tab">Cadastro</button>
-        </div>
-
-        <!-- Login -->
-        <form id="loginForm" class="auth-form">
-          <label class="field-group">
-            <span>Email</span>
-            <input type="email" id="loginEmail" required>
-          </label>
-          <label class="field-group">
-            <span>Senha</span>
-            <input type="password" id="loginPassword" required>
-          </label>
-          <button type="submit" class="btn btn-primary full-width">Entrar</button>
-        </form>
-
-        <!-- Cadastro -->
-        <form id="signupForm" class="auth-form hidden">
-          <label class="field-group">
-            <span>Nome</span>
-            <input type="text" id="signupNome" required>
-          </label>
-          <label class="field-group">
-            <span>Email</span>
-            <input type="email" id="signupEmail" required>
-          </label>
-          <label class="field-group">
-            <span>Senha</span>
-            <input type="password" id="signupPassword" required minlength="6">
-          </label>
-          <button type="submit" class="btn btn-primary full-width">Criar conta</button>
-        </form>
-
-        <p id="authMessage" class="status-message auth-message"></p>
-      </div>
-    </div>
-
-    <!-- ========== App (Dashboard) ========== -->
-<!-- ========== App (pós-login) ========== -->
-<div id="app-view" class="app-view hidden">
-  <!-- Topbar simples -->
-  <header class="app-topbar">
-    <div class="app-topbar-left">
-      <h1 class="app-title"><img src="imagens/logo-branca.jpeg" alt="logo branca"></h1>
-      <p class="app-subtitle">Controle de frequência</p>
-    </div>
-<div class="app-topbar-right">
-  <span id="currentTeacherName" class="teacher-name">Professora</span>
-  <button id="adminPanelBtn" class="btn btn-secondary hidden">Painel Admin</button>
-  <button id="logoutBtn" class="btn btn-outline">Sair</button>
-</div>
-  </header>
-
-  <main class="app-main">
-    <!-- 1️⃣ PAINEL DE TURMAS -->
-    <section id="turmas-view">
-      <div class="turmas-header">
-  <div>
-    <h2>Minhas turmas</h2>
-    <p class="help-text">Escolha uma turma ou crie uma nova para começar.</p>
-  </div>
-  <div class="turmas-header-actions">
-    <!-- Botão usado SOMENTE para admin, fica oculto por padrão -->
-    <button id="adminVoltarProfessoresBtn" class="btn btn-outline hidden">
-      ← Professores
-    </button>
-    <button id="novaTurmaBtn" class="btn btn-primary">
-      + Nova turma
-    </button>
-  </div>
-</div>
-
-      <!-- Form inline para criar/editar turma -->
-      <form id="turmaForm" class="turma-form hidden">
-        <input type="hidden" id="turmaFormId" />
-        <div class="turma-form-fields">
-          <input
-            type="text"
-            id="turmaFormNome"
-            placeholder="Nome da turma"
-            required
-          />
-          <input
-            type="text"
-            id="turmaFormDescricao"
-            placeholder="Descrição (opcional)"
-          />
-          <button type="submit" class="btn btn-primary">
-            Salvar
-          </button>
-          <button type="button" id="cancelarTurmaFormBtn" class="btn btn-outline">
-            Cancelar
-          </button>
-        </div>
-        <p id="turmaFormStatus" class="status-message"></p>
-      </form>
-
-      <div id="turmasGrid" class="turmas-grid">
-        <!-- cards de turmas renderizados via JS -->
-      </div>
-    </section>
-
-    <!-- 2️⃣ DETALHE DA TURMA -->
-    <section id="turma-detail-view" class="hidden">
-      <div class="turma-detail-header">
-        <button id="voltarTurmasBtn" class="btn btn-outline">
-          ← Voltar para turmas
-        </button>
-        <div class="turma-detail-info">
-          <h2 id="turmaDetailNome"></h2>
-          <p id="turmaDetailInfo" class="help-text"></p>
-        </div>
-      </div>
-
-      <!-- Abas dentro da turma -->
-      <div class="turma-tabs">
-        <button class="turma-tab active" data-turma-tab="alunos">👥 Alunos</button>
-        <button class="turma-tab" data-turma-tab="chamada">📋 Chamada</button>
-        <button class="turma-tab" data-turma-tab="relatorios">📊 Relatórios</button>
-      </div>
-
-      <!-- 👥 Alunos -->
-      <section id="tab-alunos" class="turma-tab-content">
-        <div class="card">
-          <h3>Alunos da turma</h3>
-          <p class="help-text">
-            Adicione alunos rapidamente. Pressione Enter para adicionar.
-          </p>
-<form id="novoAlunoForm" class="inline-form">
-  <div class="field-group">
-    <label for="novoAlunoNome">Nome do aluno</label>
-    <input
-      type="text"
-      id="novoAlunoNome"
-      placeholder="Nome do aluno"
-      required
-    />
+  <div id="app">
+    <div class="splash"><img src="icons/globe-128.png" alt="" width="72" height="72"><span class="spinner"></span></div>
   </div>
 
-  <div class="field-group">
-    <label for="novoAlunoDataEntrada">Data de entrada do aluno na turma</label>
-    <input
-      type="date"
-      id="novoAlunoDataEntrada"
-      required
-      title="Essa data define a partir de quando o aluno começa a contar presença (antes disso ele não conta falta)."
-    />
-    <span class="help-text">
-      Essa data define a partir de quando o aluno começa a contar presença.
-      Antes disso, ele não entra no cálculo de faltas.
-    </span>
-  </div>
+  <noscript>
+    <p style="padding:24px;font-family:sans-serif;text-align:center">
+      Para usar o Challenger Presença, ative o JavaScript no seu navegador.
+    </p>
+  </noscript>
 
-  <button type="submit" class="btn btn-secondary">
-    Adicionar
-  </button>
-</form>
-          <ul id="listaAlunosTurma" class="simple-list">
-            <!-- alunos via JS -->
-          </ul>
-        </div>
-      </section>
-
-      <!-- 📋 Chamada -->
-      <section id="tab-chamada" class="turma-tab-content hidden">
-        <div class="card">
-          <div class="chamada-header">
-            <div>
-              <h3>Chamada</h3>
-              <p class="help-text">
-                Selecione a data e marque cada aluno como presente ou ausente.
-              </p>
-            </div>
-            <div class="field-group">
-              <label for="dataChamada">Data</label>
-              <input type="date" id="dataChamada" />
-            </div>
-          </div>
-
-          <div id="listaAlunosChamada" class="lista-chamada">
-            <!-- linhas de chamada via JS -->
-          </div>
-
-          <div class="chamada-actions">
-            <button id="salvarChamadaBtn" class="btn btn-primary">
-              Salvar chamada
-            </button>
-          </div>
-          <p id="mensagemStatus" class="status-message"></p>
-        </div>
-      </section>
-
-      <!-- 📊 Relatórios -->
-      <section id="tab-relatorios" class="turma-tab-content hidden">
-        <div class="card">
-          <div class="relatorios-header">
-            <div>
-              <h3>Relatório da turma</h3>
-              <p class="help-text">
-                Selecione o mês para ver o resumo de frequência.
-              </p>
-            </div>
-            <div class="field-group">
-              <label for="mesRelatorio">Mês</label>
-              <input type="month" id="mesRelatorio" />
-            </div>
-          </div>
-
-          <!-- Resumo em tabela simples -->
-          <div class="schedule-table-wrapper">
-            <table class="schedule-table report-table">
-              <thead>
-                <tr>
-                  <th>Aluno</th>
-                  <th>Presenças</th>
-                  <th>Faltas</th>
-                  <th>Total</th>
-                  <th>%</th>
-                </tr>
-              </thead>
-              <tbody id="relatorioMensalBody">
-                <!-- via JS -->
-              </tbody>
-            </table>
-          </div>
-
-          <div class="relatorios-actions">
-            <button id="exportarPdfBtn" class="btn btn-secondary">
-              Exportar PDF
-            </button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3>Calendário de Aulas e Frequência</h3>
-          <div id="calendarioContainer" class="calendar-container-novo">
-            <!-- Calendário renderizado via JS -->
-          </div>
-          <div id="calendarDetailModal" class="modal hidden">
-            <!-- Modal de detalhes renderizado via JS -->
-          </div>
-        </div>
-      </section>
-    </section>
-      <!-- 3️⃣ PAINEL ADMIN -->
-    <section id="admin-view" class="hidden view-section">
-      <div class="card">
-        <h2>Painel Administrativo</h2>
-        <p class="help-text">
-          Gerencie turmas, chamadas, professores e emails autorizados.
-        </p>
-
-        <div class="admin-tabs">
-          <button class="admin-tab active" data-admin-tab="visao-geral">
-            Visão geral
-          </button>
-          <button class="admin-tab" data-admin-tab="chamadas">
-            Chamadas
-          </button>
-          <button class="admin-tab" data-admin-tab="professores">
-            Professores
-          </button>
-          <button class="admin-tab" data-admin-tab="emails">
-            Emails autorizados
-          </button>
-        </div>
-      </div>
-
-      <!-- 📊 VISÃO GERAL -->
-      <section id="admin-tab-visao-geral" class="admin-tab-content">
-<div class="card">
-  <div class="section-header">
-    <div>
-      <h3>Turmas por professor</h3>
-      <p class="help-text">
-        Clique no professor para expandir e ver apenas as turmas dele.
-      </p>
-    </div>
-  </div>
-
-  <!-- Container onde o JS vai montar o accordion -->
-  <div id="adminTurmasContainer" class="admin-professores-lista">
-    <!-- via JS -->
-  </div>
-
-  <p id="adminVisaoGeralStatus" class="status-message"></p>
-</div>
-      </section>
-
-      <!-- 📅 CHAMADAS -->
-      <section id="admin-tab-chamadas" class="admin-tab-content hidden">
-        <div class="card">
-          <div class="section-header">
-            <div>
-              <h3>Chamadas</h3>
-              <p class="help-text">
-                Filtre por professor, turma e mês. Veja os dias que tiveram ou não chamada.
-              </p>
-            </div>
-          </div>
-
-          <div class="admin-filters">
-            <div class="field-group">
-              <label for="adminFiltroProfessor">Professor</label>
-              <select id="adminFiltroProfessor"></select>
-            </div>
-            <div class="field-group">
-              <label for="adminFiltroTurma">Turma</label>
-              <select id="adminFiltroTurma"></select>
-            </div>
-            <div class="field-group">
-              <label for="adminFiltroMes">Mês</label>
-              <input type="month" id="adminFiltroMes" />
-            </div>
-          </div>
-
-          <div class="schedule-table-wrapper">
-            <table class="schedule-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Turma</th>
-                  <th>Professor</th>
-                  <th>Tipo</th>
-                  <th>Presentes</th>
-                  <th>Ausentes</th>
-                </tr>
-              </thead>
-              <tbody id="adminChamadasTableBody">
-                <!-- via JS -->
-              </tbody>
-            </table>
-          </div>
-          <p id="adminChamadasStatus" class="status-message"></p>
-        </div>
-
-        <div class="card">
-          <h3>Dias com e sem chamada</h3>
-          <p class="help-text">
-            Resumo diário do mês selecionado para a turma filtrada.
-          </p>
-          <ul id="adminChamadasDiasLista" class="dias-chamadas-lista">
-            <!-- via JS -->
-          </ul>
-        </div>
-      </section>
-
-      <!-- 👨‍🏫 PROFESSORES -->
-      <section id="admin-tab-professores" class="admin-tab-content hidden">
-        <div class="card">
-          <div class="section-header">
-            <div>
-              <h3>Professores</h3>
-              <p class="help-text">
-                Listagem de todos os professores e seus perfis.
-              </p>
-            </div>
-          </div>
-
-          <div class="schedule-table-wrapper">
-            <table class="schedule-table">
-              <thead>
-                <tr>
-                  <th>Nome</th>
-                  <th>Email</th>
-                  <th>Perfil</th>
-                </tr>
-              </thead>
-              <tbody id="adminProfessoresTableBody">
-                <!-- via JS -->
-              </tbody>
-            </table>
-          </div>
-          <p id="adminProfessoresStatus" class="status-message"></p>
-        </div>
-      </section>
-
-      <!-- 🔐 EMAILS AUTORIZADOS -->
-      <section id="admin-tab-emails" class="admin-tab-content hidden">
-        <div class="card">
-          <div class="section-header">
-            <div>
-              <h3>Emails autorizados</h3>
-              <p class="help-text">
-                Controle quem pode se cadastrar no sistema.
-              </p>
-            </div>
-          </div>
-
-          <form id="adminEmailForm" class="inline-form">
-            <input
-              type="email"
-              id="adminNovoEmail"
-              placeholder="email@exemplo.com"
-              required
-            />
-            <button type="submit" class="btn btn-primary">
-              Adicionar email
-            </button>
-          </form>
-          <p id="adminEmailStatus" class="status-message"></p>
-
-          <div class="schedule-table-wrapper">
-            <table class="schedule-table">
-              <thead>
-                <tr>
-                  <th>Email</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody id="adminEmailsTableBody">
-                <!-- via JS -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-    </section>
-
-
-  </main>
-
-  <footer class="footer">
-    <p>Sistema de Presença • Challenger Language School.</p>
-  </footer>
-</div>
-    </div>
-  </div>
-
-  <script type="module" src="js/main.js"></script>
-  <script>
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("service-worker.js")
-    .then(() => console.log("SW registrado"))
-    .catch(err => console.log("Erro SW:", err));
-}
-</script>
+  <script type="module" src="js/app.js?v=2.0.0"></script>
 </body>
 </html>
