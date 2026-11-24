@@ -2416,6 +2416,38 @@ body:not(.has-bottomnav) .savebar {
   transition: transform 0.1s, box-shadow 0.15s;
 }
 
+/* Celular estreito: as 7 colunas sempre cabem no card. Com altura mínima e
+   formato quadrado, o dia nunca ficava abaixo de 40px de largura e o sábado
+   passava da borda em telas de 360px ou menos. */
+.cal-day {
+  min-width: 0;
+}
+
+@media (max-width: 400px) {
+  .cal-grid {
+    gap: 4px;
+  }
+
+  .cal-day {
+    min-height: 0;
+    border-radius: 10px;
+  }
+
+  .cal-num {
+    font-size: 0.82rem;
+  }
+
+  .month-picker {
+    max-width: 100%;
+  }
+
+  .month-label {
+    min-width: 0;
+    padding: 0 8px;
+    white-space: nowrap;
+  }
+}
+
 .cal-day:not(:disabled):hover {
   box-shadow: var(--shadow);
   transform: translateY(-1px);
